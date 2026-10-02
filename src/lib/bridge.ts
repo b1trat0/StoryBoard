@@ -74,17 +74,7 @@ export interface StoryBoardBridge {
     create(input: { arcId: string; title: string; type?: ChapterType; status?: ChapterStatus }): Promise<Chapter>;
     remove(input: { id: string }): Promise<void>;
     saveBody(input: { id: string; bodyMd: string }): Promise<Chapter>;
-    saveOutline(input: {
-      id: string;
-      title?: string;
-      type?: ChapterType;
-      status?: ChapterStatus;
-      povEntityId?: string | null;
-      outlineGoal?: string;
-      outlineConflict?: string;
-      outlineOutcome?: string;
-      outlineBeat?: string;
-    }): Promise<Chapter>;
+    saveOutline(input: SaveChapterOutlineInput): Promise<Chapter>;
   };
   glossary: {
     list(input: { projectId: string }): Promise<GlossaryTerm[]>;
@@ -267,6 +257,23 @@ export interface Chapter {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * The outline fields of a chapter that may be patched independently of its prose.
+ * Every field is optional: a patch carries only what the author actually changed,
+ * so saving a title cannot blank the goal the author wrote last week.
+ */
+export interface SaveChapterOutlineInput {
+  id: string;
+  title?: string;
+  type?: ChapterType;
+  status?: ChapterStatus;
+  povEntityId?: string | null;
+  outlineGoal?: string;
+  outlineConflict?: string;
+  outlineOutcome?: string;
+  outlineBeat?: string;
 }
 
 export interface GlossaryTerm {

@@ -18,6 +18,12 @@ import {
 export interface ChapterEditorProps {
   chapter: Chapter | null;
   isLoading: boolean;
+  /**
+   * Persists outline fields and refreshes the outline tree. Injected rather than
+   * taken from the bridge here so the tree the author is looking at cannot fall out
+   * of step with the chapter they just renamed.
+   */
+  onSaveOutline: (id: string, patch: Partial<Chapter>) => Promise<void>;
 }
 
 /**
@@ -37,7 +43,7 @@ export interface ChapterEditorProps {
  * open does not, which is what keeps unsaved prose from being overwritten by a
  * background reload.
  */
-export function ChapterEditor({ chapter, isLoading }: ChapterEditorProps) {
+export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEditorProps) {
   // Owned from first render, not synced from props: see the note above.
   const [draft, setDraft] = useState<Chapter | null>(chapter);
   // What the database currently holds. `draft` is what is on screen; this is what
@@ -53,22 +59,20 @@ export function ChapterEditor({ chapter, isLoading }: ChapterEditorProps) {
 
   const saveOutlineField = useCallback(
     async (patch: Partial<Chapter>) => {
-      const bridge = getBridge();
       const current = draft;
-      if (bridge === null || current === null) {
+      if (current === null) {
         return;
       }
       setErrorMessage(null);
       try {
-        // Saving through the service keeps word_count and updated_at in step with
-        // whatever the outline change implies.
-        await bridge.chapters.saveOutline({ id: current.id, ...toOutlinePatch(patch) });
+        // The hook owns this call so the tree reloads with it; see onSaveOutline.
+        await onSaveOutline(current.id, patch);
         setSaved((previous) => (previous === null ? null : { ...previous, ...patch }));
       } catch (err) {
         setErrorMessage(describeError(err));
       }
     },
-    [draft],
+    [draft, onSaveOutline],
   );
 
   const commitProse = useCallback(async () => {
@@ -343,27 +347,6 @@ function OutlineField({ id, label, value, onCommit }: OutlineFieldProps) {
       />
     </div>
   );
-}
-
-/** Maps a partial chapter down to the fields the outline save accepts. */
-function toOutlinePatch(patch: Partial<Chapter>): Record<string, unknown> {
-  const allowed = [
-    'title',
-    'type',
-    'status',
-    'povEntityId',
-    'outlineGoal',
-    'outlineConflict',
-    'outlineOutcome',
-    'outlineBeat',
-  ] as const;
-  const out: Record<string, unknown> = {};
-  for (const key of allowed) {
-    if (patch[key] !== undefined) {
-      out[key] = patch[key];
-    }
-  }
-  return out;
 }
 
 /** Mirrors the main process word count so the number does not jump on save. */

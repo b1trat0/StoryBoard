@@ -84,6 +84,28 @@ function blur(element: HTMLElement) {
   element.dispatchEvent(new Event('focusout', { bubbles: true }));
 }
 
+/**
+ * Renders the editor the way App does: outline saves leave through the injected
+ * function, which is where the outline tree refresh lives.
+ *
+ * The stub is called through the installed bridge rather than captured in a closure
+ * so that the spy a test grabbed from `installBridge` is the same one the editor
+ * reaches. A test that stubs the bridge and bypasses this wiring would keep passing
+ * after the editor stopped refreshing the tree, which is exactly the regression
+ * these tests exist to catch.
+ */
+function renderEditor(props: { chapter: Chapter | null; isLoading: boolean }) {
+  const onSaveOutline = async (id: string, patch: Partial<Chapter>) => {
+    const bridge = (
+      window as {
+        storyboard?: { chapters: { saveOutline: (input: unknown) => Promise<unknown> } };
+      }
+    ).storyboard;
+    await bridge?.chapters.saveOutline({ id, ...patch });
+  };
+  return render(<ChapterEditor {...props} onSaveOutline={onSaveOutline} />);
+}
+
 beforeEach(() => {
   installBridge();
 });
@@ -97,7 +119,7 @@ afterEach(() => {
 describe('prose is never written while it is being typed', () => {
   it('sends nothing to the database while the author types', () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Chapter prose'), 'The first sentence of a chapter.');
 
@@ -106,7 +128,7 @@ describe('prose is never written while it is being typed', () => {
 
   it('writes the prose only when Save is pressed', async () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Chapter prose'), 'The first sentence.');
     (screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement).click();
@@ -119,7 +141,7 @@ describe('prose is never written while it is being typed', () => {
   });
 
   it('marks the prose unsaved while it differs from what is stored', () => {
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     expect(screen.getByText('Everything saved')).toBeTruthy();
 
@@ -131,7 +153,7 @@ describe('prose is never written while it is being typed', () => {
   });
 
   it('leaves Save disabled when there is nothing to save', () => {
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const button = screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement;
 
@@ -139,7 +161,7 @@ describe('prose is never written while it is being typed', () => {
   });
 
   it('shows a word count that matches what the main process will store', () => {
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Chapter prose'), 'one two three four five');
 
@@ -149,7 +171,7 @@ describe('prose is never written while it is being typed', () => {
   it('keeps unsaved prose on screen when the save fails, so nothing is lost', async () => {
     const stub = installBridge();
     stub.saveBody.mockRejectedValueOnce(new Error('the database is away'));
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Chapter prose'), 'Precious unsaved words.');
     (screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement).click();
@@ -164,7 +186,7 @@ describe('prose is never written while it is being typed', () => {
 describe('the outline commits without a button', () => {
   it('writes an outline field once, when it loses focus', async () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const goal = screen.getByLabelText('Goal');
     setValue(goal, 'Kael breaks the seal.');
@@ -178,7 +200,7 @@ describe('the outline commits without a button', () => {
 
   it('does not write an outline field on every keystroke', () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Goal'), 'K');
     setValue(screen.getByLabelText('Goal'), 'Ka');
@@ -189,7 +211,7 @@ describe('the outline commits without a button', () => {
 
   it('does not rewrite an outline field the author typed nothing into', () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const goal = screen.getByLabelText('Goal');
     blur(goal);
@@ -199,7 +221,7 @@ describe('the outline commits without a button', () => {
 
   it('writes the title on blur, trimmed', async () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const title = screen.getByLabelText('Chapter title');
     setValue(title, '  The Second Gate  ');
@@ -214,7 +236,7 @@ describe('the outline commits without a button', () => {
 
   it('never writes a blank title, since the column forbids one', () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const title = screen.getByLabelText('Chapter title');
     setValue(title, '   ');
@@ -225,7 +247,7 @@ describe('the outline commits without a button', () => {
 
   it('writes a status change immediately, because a dropdown has no blur of its own', async () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture()} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     const status = screen.getByLabelText('Status') as HTMLSelectElement;
     setValue(status, 'done');
@@ -239,7 +261,7 @@ describe('the outline commits without a button', () => {
 
   it('leaves the prose untouched when only the outline changes', async () => {
     const stub = installBridge();
-    render(<ChapterEditor chapter={chapterFixture({ bodyMd: 'Original prose.' })} isLoading={false} />);
+    renderEditor({ chapter: chapterFixture({ bodyMd: 'Original prose.' }), isLoading: false });
 
     const status = screen.getByLabelText('Status') as HTMLSelectElement;
     setValue(status, 'draft');
@@ -252,16 +274,68 @@ describe('the outline commits without a button', () => {
   });
 });
 
+describe('a renamed chapter does not leave the outline showing the old name', () => {
+  /**
+   * The chapter is created with the placeholder title "Untitled chapter". If the
+   * editor saves the title without refreshing the tree, the outline keeps rendering
+   * the placeholder forever even though the database holds the real title, and the
+   * author has no way to tell a saved rename from a lost one. The save must therefore
+   * go through the injected function that the outline hook owns.
+   */
+  it('refreshes the outline after a title is written', async () => {
+    const stub = installBridge();
+    let reloadCount = 0;
+    const onSaveOutline = async (id: string, patch: Partial<Chapter>) => {
+      await stub.saveOutline({ id, ...patch });
+      reloadCount += 1;
+    };
+    render(
+      <ChapterEditor
+        chapter={chapterFixture({ title: 'Untitled chapter' })}
+        isLoading={false}
+        onSaveOutline={onSaveOutline}
+      />,
+    );
+
+    const title = screen.getByLabelText('Chapter title');
+    setValue(title, 'The Ash Gate Reborn');
+    blur(title);
+
+    await waitFor(() => expect(stub.saveOutline).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(reloadCount).toBe(1));
+  });
+
+  it('reports a failed title save instead of claiming the rename worked', async () => {
+    installBridge();
+    const onSaveOutline = async () => {
+      throw new Error('Could not save that title.');
+    };
+    render(
+      <ChapterEditor
+        chapter={chapterFixture({ title: 'Untitled chapter' })}
+        isLoading={false}
+        onSaveOutline={onSaveOutline}
+      />,
+    );
+
+    const title = screen.getByLabelText('Chapter title');
+    setValue(title, 'The Ash Gate Reborn');
+    blur(title);
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/title/i));
+  });
+});
+
 describe('no chapter selected', () => {
   it('asks for a chapter instead of showing an empty editor', () => {
-    render(<ChapterEditor chapter={null} isLoading={false} />);
+    renderEditor({ chapter: null, isLoading: false });
 
     expect(screen.getByText(/pick a chapter/i)).toBeTruthy();
     expect(screen.queryByLabelText('Chapter prose')).toBeNull();
   });
 
   it('shows a placeholder rather than the editor while the chapter loads', () => {
-    render(<ChapterEditor chapter={null} isLoading={true} />);
+    renderEditor({ chapter: null, isLoading: true });
 
     expect(screen.queryByText(/pick a chapter/i)).toBeNull();
     expect(screen.queryByLabelText('Chapter prose')).toBeNull();

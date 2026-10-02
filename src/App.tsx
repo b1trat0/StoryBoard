@@ -182,6 +182,7 @@ export function App() {
                 key={outline.chapter?.id ?? 'none'}
                 chapter={outline.chapter}
                 isLoading={outline.isChapterLoading}
+                onSaveOutline={outline.saveChapterOutline}
               />
             )}
 

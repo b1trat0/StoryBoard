@@ -196,6 +196,34 @@ of these produces broken output for real published chapters, so treat them as te
 - **Royal Road has no API** (official API request was marked Rejected). Export terminates
   at a file the author uploads by hand. Do not attempt to automate publishing.
 
+### What the author writes is not what Royal Road accepts
+
+Re-verified against `royalroad.com/support/knowledgebase/83`. The gap is the whole reason
+the export step exists, so state it plainly rather than letting the author assume the app's
+storage format can be pasted straight in.
+
+- **Royal Road understands no markdown.** The editor toolbar is bold, italic, underline and
+  strikethrough; anything more goes in through BBCode or the source-code view. `*emphasis*`
+  and `**bold**` reach a published chapter as literal asterisks. Markdown must be converted
+  at export or must not be written in the first place. This is an open decision, not a
+  settled rule.
+- **A blank line is a paragraph; a single newline is a line break.** This is not a guess:
+  Royal Road's own "clean paste" option exists to repair content where "some editors only use
+  line breaks instead of paragraphs for spacing". `splitParagraphs` already implements
+  exactly this rule, and illustration anchoring depends on it.
+- **No indentation and no line spacing.** Royal Road is single-spaced and does not indent
+  first lines. Never emit leading spaces or `<p style="text-indent">` for a paragraph.
+- **The chapter editor's own fields are Title, Author Notes, and Chapter Content.** Anything
+  the app stores beyond those three is internal and must not be emitted as chapter body.
+- **Royal Road volumes are thinner than they look.** Volumes only order chapters on the
+  fiction page and hold covers. They carry no summary and no volume-specific stats.
+- **Arcs do not exist on Royal Road.** The site has volume to chapter and nothing between.
+  Arc boundaries are internal structure and must be flattened out of exported output; a
+  reader must never see an arc heading.
+- **Chapter length limits are enforced.** Minimum 500 characters, or the chapter cannot be
+  published. Recommended ceiling is 10,000 words with roughly 2,000 a release, and one
+  Royal Road page is 275 words.
+
 Export pipeline, in order:
 
 1. **Release preview** — one screen showing the chapter and image placements exactly as

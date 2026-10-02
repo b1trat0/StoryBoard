@@ -5,6 +5,7 @@ import type {
   Chapter,
   OutlineNodeKind,
   OutlineTree,
+  SaveChapterOutlineInput,
   Volume,
 } from '../../lib/bridge';
 
@@ -35,6 +36,16 @@ export interface OutlineState {
     status?: Chapter['status'];
   }) => Promise<Chapter>;
   removeNode: (input: { kind: OutlineNodeKind; id: string }) => Promise<void>;
+  /**
+   * Persist outline fields of a chapter the editor has open, then refresh the tree.
+   *
+   * The editor cannot do this itself. It holds the chapter as its own state and the
+   * tree is a separate snapshot taken at load time, so a title saved in the editor
+   * was written to the database and then stayed invisible in the outline: the
+   * chapter kept showing the placeholder name it was created with, which reads as
+   * "my title did not save".
+   */
+  saveChapterOutline: (id: string, patch: Partial<Chapter>) => Promise<void>;
 }
 
 const EMPTY_TREE: OutlineTree = { volumes: [] };
@@ -121,8 +132,17 @@ export function useOutline(projectId: string): OutlineState {
     [runMutation],
   );
 
-  const createChapter: OutlineState['createChapter'] = useCallback(
+    const createChapter: OutlineState['createChapter'] = useCallback(
     (input) => runMutation(`chapter:${input.arcId}`, (bridge) => bridge.chapters.create(input)),
+    [runMutation],
+  );
+
+  const saveChapterOutline: OutlineState['saveChapterOutline'] = useCallback(
+    async (id, patch) => {
+      await runMutation(`outline:${id}`, (bridge) =>
+        bridge.chapters.saveOutline({ id, ...toOutlinePatch(patch) }),
+      );
+    },
     [runMutation],
   );
 
@@ -156,6 +176,7 @@ export function useOutline(projectId: string): OutlineState {
     createVolume,
     createArc,
     createChapter,
+    saveChapterOutline,
     removeNode,
   };
 }
@@ -163,4 +184,28 @@ export function useOutline(projectId: string): OutlineState {
 /** Narrows an unknown rejection to the message the author should read. */
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong.';
+}
+
+/**
+ * Reduce a chapter edit to the outline fields the author actually touched.
+ *
+ * `Partial<Chapter>` is the editor's internal shape and carries prose, counts and
+ * timestamps; `saveOutline` accepts none of those. Copying known keys explicitly
+ * means a new column on `Chapter` is never sent by accident, and an absent field
+ * stays absent rather than becoming an empty string that would erase the value the
+ * author saved earlier.
+ */
+function toOutlinePatch(
+  patch: Partial<Chapter>,
+): Omit<SaveChapterOutlineInput, 'id'> {
+  const wire: Omit<SaveChapterOutlineInput, 'id'> = {};
+  if (patch.title !== undefined) wire.title = patch.title;
+  if (patch.type !== undefined) wire.type = patch.type;
+  if (patch.status !== undefined) wire.status = patch.status;
+  if (patch.povEntityId !== undefined) wire.povEntityId = patch.povEntityId;
+  if (patch.outlineGoal !== undefined) wire.outlineGoal = patch.outlineGoal;
+  if (patch.outlineConflict !== undefined) wire.outlineConflict = patch.outlineConflict;
+  if (patch.outlineOutcome !== undefined) wire.outlineOutcome = patch.outlineOutcome;
+  if (patch.outlineBeat !== undefined) wire.outlineBeat = patch.outlineBeat;
+  return wire;
 }
