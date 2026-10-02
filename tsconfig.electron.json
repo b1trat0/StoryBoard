@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist-electron",
+    "rootDir": ".",
+    "noEmit": false,
+    "sourceMap": true,
+    "declaration": false,
+    "types": ["node"]
+  },
+  "include": ["electron/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["**/*.test.ts", "electron/preload.ts"]
+}

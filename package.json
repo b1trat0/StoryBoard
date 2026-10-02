@@ -1,0 +1,95 @@
+{
+  "name": "storyboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only writing and continuity tool for a serial fantasy light novel",
+  "main": "dist-electron/electron/main.js",
+  "type": "module",
+  "scripts": {
+    "start": "npm run build && electron .",
+    "dev": "npm run build:electron && node scripts/dev.mjs",
+    "dev:electron": "npm run dev",
+    "dev:vite": "vite",
+    "dev:electron:bare": "cross-env STORYBOARD_DEV_SERVER=http://localhost:5173 electron .",
+    "build": "npm run build:electron && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json && npm run build:preload",
+    "build:preload": "vite build --config vite.preload.config.ts",
+    "preview": "vite preview",
+    "package": "npm run build && electron-builder",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run build:electron && node dist-electron/scripts/migrate.js",
+    "db:seed": "npm run build:electron && node dist-electron/scripts/seed.js",
+    "db:dump": "npm run build:electron && node dist-electron/scripts/pg-dump.js",
+    "db:reset": "npm run build:electron && node dist-electron/scripts/migrate.js --reset"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "docx": "^9.8.1",
+    "drizzle-orm": "^0.45.3",
+    "motion": "^13.5.0",
+    "pg": "^8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "cross-env": "^10.1.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^30.1.1",
+    "pg-mem": "^3.0.14",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "build": {
+    "appId": "com.storyboard.app",
+    "productName": "StoryBoard",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "db/migrations/*.sql"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  }
+}

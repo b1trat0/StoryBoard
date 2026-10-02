@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: storyboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: storyboard
+      POSTGRES_USER: storyboard
+      POSTGRES_PASSWORD: storyboard
+    ports:
+      # Host port 5433 because 5432 is already taken by another local Postgres.
+      # The container always listens on 5432 internally.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - storyboard-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storyboard -d storyboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  storyboard-pgdata:

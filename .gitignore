@@ -1,0 +1,25 @@
+node_modules/
+dist/
+dist-electron/
+release/
+out/
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# Local manuscript backups produced by pg_dump automation
+backups/
+
+# Export artifacts are regenerated from the database, never committed
+exports/
+
+.vscode/*
+!.vscode/extensions.json
+.idea/
+coverage/
+*.tsbuildinfo
+
+# npm audit output; regenerate on demand rather than committing it
+audit.json

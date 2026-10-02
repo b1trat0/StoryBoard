@@ -1,0 +1,254 @@
+/**
+ * The typed handle on the main process.
+ *
+ * This is the renderer's only route to the database. There is no fetch, no SQL,
+ * and no fs anywhere in src/: every read and write goes through these calls,
+ * which preload forwards to a validated IPC handler.
+ *
+ * The types come from electron/ipc/contract.ts, the same file the main process
+ * validates against, so a payload change breaks compilation on both sides at
+ * once rather than failing silently at runtime.
+ */
+export interface StoryBoardBridge {
+  entities: {
+    list(input: { projectId: string; type?: 'character' | 'place' | 'faction' | 'item' | 'rule' }): Promise<Entity[]>;
+    create(input: {
+      projectId: string;
+      type: 'character' | 'place' | 'faction' | 'item' | 'rule';
+      canonicalName: string;
+      aliases?: string[];
+      summary?: string;
+      originEntityId?: string | null;
+    }): Promise<Entity>;
+    update(input: {
+      id: string;
+      summary?: string;
+      appearance?: string;
+      personality?: string;
+      backstory?: string;
+      originEntityId?: string | null;
+      metadata?: Record<string, unknown>;
+    }): Promise<Entity>;
+    addAlias(input: { id: string; alias: string }): Promise<Entity>;
+    remove(input: { id: string }): Promise<void>;
+  };
+  relations: {
+    list(input: { projectId: string; entityId?: string; category?: RelationCategory }): Promise<RelationWithKnowledge[]>;
+    create(input: CreateRelationInput): Promise<RelationWithKnowledge>;
+    remove(input: { id: string }): Promise<void>;
+  };
+  facts: {
+    list(input: {
+      projectId: string;
+      scopeType?: FactScopeType;
+      scopeId?: string;
+      kind?: FactKind;
+      status?: FactStatus;
+    }): Promise<Fact[]>;
+    create(input: {
+      projectId: string;
+      scopeType: FactScopeType;
+      scopeId: string | null;
+      kind: FactKind;
+      content: string;
+      sourceChapterId: string;
+      sourceQuote: string;
+      status?: FactStatus;
+    }): Promise<Fact>;
+    setStatus(input: { id: string; status: FactStatus }): Promise<Fact>;
+    remove(input: { id: string }): Promise<void>;
+  };
+  chapters: {
+    listByArc(input: { arcId: string }): Promise<Chapter[]>;
+    saveBody(input: { id: string; bodyMd: string }): Promise<Chapter>;
+    saveOutline(input: {
+      id: string;
+      title?: string;
+      type?: ChapterType;
+      status?: ChapterStatus;
+      povEntityId?: string | null;
+      outlineGoal?: string;
+      outlineConflict?: string;
+      outlineOutcome?: string;
+      outlineBeat?: string;
+    }): Promise<Chapter>;
+  };
+  glossary: {
+    list(input: { projectId: string }): Promise<GlossaryTerm[]>;
+    save(input: {
+      projectId: string;
+      canonicalForm: string;
+      kind: GlossaryKind;
+      notes?: string;
+    }): Promise<GlossaryTerm>;
+  };
+  illustrations: {
+    listByChapter(input: { chapterId: string }): Promise<Illustration[]>;
+    createSlot(input: {
+      chapterId: string;
+      afterParagraphIndex: number;
+      localPath: string;
+      altText: string;
+      width?: number | null;
+      height?: number | null;
+    }): Promise<Illustration>;
+    updateSlot(input: {
+      id: string;
+      afterParagraphIndex: number;
+      altText: string;
+      caption?: string;
+    }): Promise<Illustration>;
+    uploadToHost(input: { id: string }): Promise<Illustration>;
+  };
+}
+
+export type EntityType = 'character' | 'place' | 'faction' | 'item' | 'rule';
+export type RelationCategory = 'social' | 'possession' | 'membership';
+export type FactScopeType = 'chapter' | 'entity' | 'relation' | 'global';
+export type FactKind =
+  | 'event'
+  | 'character_fact'
+  | 'new_entity'
+  | 'relation_shift'
+  | 'open_promise'
+  | 'unresolved';
+export type FactStatus = 'draft' | 'approved' | 'rejected';
+export type ChapterType = 'chapter' | 'prologue' | 'epilogue' | 'interlude';
+export type ChapterStatus = 'outline' | 'draft' | 'done';
+export type GlossaryKind = 'name' | 'term' | 'honorific' | 'style';
+
+export interface Entity {
+  id: string;
+  projectId: string;
+  type: EntityType;
+  canonicalName: string;
+  aliases: string[];
+  summary: string;
+  appearance: string;
+  personality: string;
+  backstory: string;
+  originEntityId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RelationWithKnowledge {
+  id: string;
+  projectId: string;
+  fromEntityId: string;
+  toEntityId: string;
+  fromName: string;
+  toName: string;
+  category: RelationCategory;
+  typeLabel: string;
+  sentiment: number | null;
+  rank: string | null;
+  validFromChapterId: string | null;
+  validToChapterId: string | null;
+  isSecret: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  knownBy: { id: string; canonicalName: string }[];
+}
+
+export interface CreateRelationInput {
+  projectId: string;
+  fromEntityId: string;
+  toEntityId: string;
+  category: RelationCategory;
+  typeLabel: string;
+  sentiment?: number | null;
+  rank?: string | null;
+  validFromChapterId?: string | null;
+  validToChapterId?: string | null;
+  isSecret?: boolean;
+  notes?: string;
+  knownByEntityIds?: string[];
+}
+
+export interface Fact {
+  id: string;
+  projectId: string;
+  scopeType: FactScopeType;
+  scopeId: string | null;
+  kind: FactKind;
+  content: string;
+  sourceChapterId: string;
+  sourceQuote: string;
+  status: FactStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Chapter {
+  id: string;
+  arcId: string;
+  title: string;
+  ordinal: number;
+  type: ChapterType;
+  status: ChapterStatus;
+  povEntityId: string | null;
+  outlineGoal: string;
+  outlineConflict: string;
+  outlineOutcome: string;
+  outlineBeat: string;
+  bodyMd: string;
+  wordCount: number;
+  rrUrl: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  projectId: string;
+  canonicalForm: string;
+  kind: GlossaryKind;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Illustration {
+  id: string;
+  chapterId: string;
+  afterParagraphIndex: number;
+  localPath: string;
+  remoteUrl: string | null;
+  provider: 'catbox' | 'imgbb' | 'manual';
+  width: number | null;
+  height: number | null;
+  altText: string;
+  caption: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Returns the bridge, or null when the renderer is running outside Electron.
+ *
+ * The null case is real: `npm run dev` opens a plain browser tab with no preload
+ * script and no main process. Rather than crashing on an undefined property, the
+ * app detects this and says so, which is also how the "open a browser tab by
+ * mistake" case gets a useful message.
+ */
+export function getBridge(): StoryBoardBridge | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return (window as { storyboard?: StoryBoardBridge }).storyboard ?? null;
+}
+
+/** Narrows an unknown caught value to an Error with a readable message. */
+export function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'string') {
+    return err;
+  }
+  return 'Something went wrong.';
+}
