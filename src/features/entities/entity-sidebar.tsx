@@ -66,30 +66,6 @@ export function EntitySidebar({
           );
         })}
       </ul>
-
-      {/*
-        Sections that exist in the database but have no screen yet. Listing them
-        greyed out is more honest than omitting them: the outline, glossary and
-        export pipeline are all built, and pretending the app is one screen long
-        misrepresents where the project actually is.
-      */}
-      <div className="border-t border-line p-3">
-        <p className="px-2.5 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-          Not built yet
-        </p>
-        <ul className="space-y-0.5">
-          {['Chapters', 'Glossary', 'Relations', 'Illustrations', 'Royal Road export'].map(
-            (label) => (
-              <li
-                key={label}
-                className="rounded-md px-2.5 py-1.5 text-sm text-ink-muted/60"
-              >
-                {label}
-              </li>
-            ),
-          )}
-        </ul>
-      </div>
     </nav>
   );
 }

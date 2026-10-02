@@ -155,6 +155,57 @@ export const arcSchema = z.object({
   createdAt: isoTimestampSchema,
 });
 
+/**
+ * The tree carries chapter titles but not their prose.
+ *
+ * A serial novel's whole outline is small; every chapter's body_md together is not.
+ * Loading all of it to render a list of titles would drag megabytes through IPC for
+ * rows the author cannot see yet, so the tree omits body and the editor fetches one
+ * chapter at a time with chapters:get.
+ */
+export const outlineChapterSummarySchema = z.object({
+  id: uuidSchema,
+  arcId: uuidSchema,
+  title: z.string(),
+  ordinal: z.number().int().nonnegative(),
+  type: chapterTypeSchema,
+  status: chapterStatusSchema,
+  povEntityId: uuidSchema.nullable(),
+  wordCount: z.number().int().nonnegative(),
+  publishedAt: isoTimestampSchema.nullable(),
+});
+
+export const outlineArcNodeSchema = arcSchema.extend({
+  chapters: z.array(outlineChapterSummarySchema),
+});
+
+export const outlineVolumeNodeSchema = volumeSchema.extend({
+  arcs: z.array(outlineArcNodeSchema),
+});
+
+export const outlineTreeSchema = z.object({
+  volumes: z.array(outlineVolumeNodeSchema),
+});
+
+export const outlineNodeKindSchema = z.enum(['volume', 'arc', 'chapter']);
+
+/**
+ * What a cascade would actually destroy, so the confirmation can name it.
+ *
+ * Deleting a chapter cascades to the facts sourced from it, and deleting an arc or
+ * volume cascades to every chapter beneath it. Those facts are the reason this app
+ * exists, so the author is shown the real numbers before confirming rather than
+ * discovering the loss afterwards.
+ */
+export const outlineDeletionImpactSchema = z.object({
+  kind: outlineNodeKindSchema,
+  title: z.string(),
+  childCount: z.number().int().nonnegative(),
+  factCount: z.number().int().nonnegative(),
+  illustrationCount: z.number().int().nonnegative(),
+  wordCount: z.number().int().nonnegative(),
+});
+
 export const chapterSchema = z.object({
   id: uuidSchema,
   arcId: uuidSchema,
@@ -226,6 +277,9 @@ export type RelationWithKnowledge = z.infer<typeof relationWithKnowledgeSchema>;
 export type Volume = z.infer<typeof volumeSchema>;
 export type Arc = z.infer<typeof arcSchema>;
 export type Chapter = z.infer<typeof chapterSchema>;
+export type OutlineChapterSummary = z.infer<typeof outlineChapterSummarySchema>;
+export type OutlineArcNode = z.infer<typeof outlineArcNodeSchema>;
+export type OutlineVolumeNode = z.infer<typeof outlineVolumeNodeSchema>;
 export type Fact = z.infer<typeof factSchema>;
 export type GlossaryTerm = z.infer<typeof glossaryTermSchema>;
 export type Illustration = z.infer<typeof illustrationSchema>;
@@ -274,6 +328,8 @@ export const addEntityAliasRequestSchema = z.object({
   id: uuidSchema,
   alias: nonEmptyText,
 });
+
+export const deleteByIdRequestSchema = z.object({ id: uuidSchema });
 
 export const deleteEntityRequestSchema = z.object({ id: uuidSchema });
 
@@ -365,6 +421,48 @@ export const saveIllustrationRequestSchema = z.object({
 
 export const listChaptersRequestSchema = z.object({ arcId: uuidSchema });
 
+export const listOutlineRequestSchema = z.object({ projectId: uuidSchema });
+
+export const getChapterRequestSchema = z.object({ id: uuidSchema });
+
+export const createVolumeRequestSchema = z.object({
+  projectId: uuidSchema,
+  title: nonEmptyText,
+  summary: z.string().default(''),
+});
+
+export const updateVolumeRequestSchema = z.object({
+  id: uuidSchema,
+  title: nonEmptyText.optional(),
+  summary: z.string().optional(),
+});
+
+export const createArcRequestSchema = z.object({
+  volumeId: uuidSchema,
+  title: nonEmptyText,
+  summary: z.string().default(''),
+});
+
+export const updateArcRequestSchema = z.object({
+  id: uuidSchema,
+  title: nonEmptyText.optional(),
+  summary: z.string().optional(),
+});
+
+export const createChapterRequestSchema = z.object({
+  arcId: uuidSchema,
+  title: nonEmptyText,
+  type: chapterTypeSchema.default('chapter'),
+  status: chapterStatusSchema.default('outline'),
+});
+
+export const deleteOutlineNodeRequestSchema = z.object({
+  id: uuidSchema,
+  kind: outlineNodeKindSchema,
+});
+
+export const describeOutlineDeletionRequestSchema = deleteOutlineNodeRequestSchema;
+
 export const listIllustrationsRequestSchema = z.object({ chapterId: uuidSchema });
 
 export const uploadIllustrationRequestSchema = z.object({ id: uuidSchema });
@@ -412,6 +510,28 @@ export type CreateIllustrationSlotRequest = z.infer<
 export type SaveIllustrationRequest = z.infer<typeof saveIllustrationRequestSchema>;
 export type SaveGlossaryTermRequest = z.infer<typeof saveGlossaryTermRequestSchema>;
 export type ListChaptersRequest = z.infer<typeof listChaptersRequestSchema>;
+export type ListOutlineRequest = z.infer<typeof listOutlineRequestSchema>;
+export type GetChapterRequest = z.infer<typeof getChapterRequestSchema>;
+export type CreateVolumeRequest = z.infer<typeof createVolumeRequestSchema>;
+export type UpdateVolumeRequest = z.infer<typeof updateVolumeRequestSchema>;
+export type CreateArcRequest = z.infer<typeof createArcRequestSchema>;
+export type UpdateArcRequest = z.infer<typeof updateArcRequestSchema>;
+export type CreateChapterRequest = z.infer<typeof createChapterRequestSchema>;
+export type DeleteOutlineNodeRequest = z.infer<typeof deleteOutlineNodeRequestSchema>;
+export type OutlineNodeKind = z.infer<typeof outlineNodeKindSchema>;
+export type OutlineDeletionImpact = z.infer<typeof outlineDeletionImpactSchema>;
+export type OutlineTree = z.infer<typeof outlineTreeSchema>;
+/**
+ * Input types, not output types.
+ *
+ * These schemas use .default(), which makes a field optional on the way in and
+ * required on the way out. A service typed with z.infer would therefore force the
+ * renderer to send `summary: ''` just to satisfy the type, when omitting it is
+ * exactly what the default is for. z.input is the type the caller actually has.
+ */
+export type CreateVolumeInput = z.input<typeof createVolumeRequestSchema>;
+export type CreateArcInput = z.input<typeof createArcRequestSchema>;
+export type CreateChapterInput = z.input<typeof createChapterRequestSchema>;
 export type ListIllustrationsRequest = z.infer<typeof listIllustrationsRequestSchema>;
 export type ListGlossaryRequest = z.infer<typeof listGlossaryRequestSchema>;
 
@@ -439,8 +559,21 @@ export interface StoryBoardApi {
     setStatus(input: { id: string; status: FactStatus }): Promise<Fact>;
     remove(input: { id: string }): Promise<void>;
   };
+  outline: {
+    list(input: ListOutlineRequest): Promise<OutlineTree>;
+    describeDeletion(input: { kind: OutlineNodeKind; id: string }): Promise<OutlineDeletionImpact>;
+    createVolume(input: CreateVolumeInput): Promise<Volume>;
+    updateVolume(input: UpdateVolumeRequest): Promise<Volume>;
+    removeVolume(input: { id: string }): Promise<void>;
+    createArc(input: CreateArcInput): Promise<Arc>;
+    updateArc(input: UpdateArcRequest): Promise<Arc>;
+    removeArc(input: { id: string }): Promise<void>;
+  };
   chapters: {
     listByArc(input: { arcId: string }): Promise<Chapter[]>;
+    get(input: { id: string }): Promise<Chapter>;
+    create(input: CreateChapterInput): Promise<Chapter>;
+    remove(input: { id: string }): Promise<void>;
     saveBody(input: SaveChapterBodyRequest): Promise<Chapter>;
     saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
   };

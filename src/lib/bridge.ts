@@ -58,8 +58,21 @@ export interface StoryBoardBridge {
     setStatus(input: { id: string; status: FactStatus }): Promise<Fact>;
     remove(input: { id: string }): Promise<void>;
   };
+  outline: {
+    list(input: { projectId: string }): Promise<OutlineTree>;
+    describeDeletion(input: { kind: OutlineNodeKind; id: string }): Promise<OutlineDeletionImpact>;
+    createVolume(input: { projectId: string; title: string; summary?: string }): Promise<Volume>;
+    updateVolume(input: { id: string; title?: string; summary?: string }): Promise<Volume>;
+    removeVolume(input: { id: string }): Promise<void>;
+    createArc(input: { volumeId: string; title: string; summary?: string }): Promise<Arc>;
+    updateArc(input: { id: string; title?: string; summary?: string }): Promise<Arc>;
+    removeArc(input: { id: string }): Promise<void>;
+  };
   chapters: {
     listByArc(input: { arcId: string }): Promise<Chapter[]>;
+    get(input: { id: string }): Promise<Chapter>;
+    create(input: { arcId: string; title: string; type?: ChapterType; status?: ChapterStatus }): Promise<Chapter>;
+    remove(input: { id: string }): Promise<void>;
     saveBody(input: { id: string; bodyMd: string }): Promise<Chapter>;
     saveOutline(input: {
       id: string;
@@ -115,7 +128,61 @@ export type FactKind =
 export type FactStatus = 'draft' | 'approved' | 'rejected';
 export type ChapterType = 'chapter' | 'prologue' | 'epilogue' | 'interlude';
 export type ChapterStatus = 'outline' | 'draft' | 'done';
+export type OutlineNodeKind = 'volume' | 'arc' | 'chapter';
 export type GlossaryKind = 'name' | 'term' | 'honorific' | 'style';
+
+export interface Volume {
+  id: string;
+  projectId: string;
+  title: string;
+  ordinal: number;
+  summary: string;
+  createdAt: string;
+}
+
+export interface Arc {
+  id: string;
+  volumeId: string;
+  title: string;
+  ordinal: number;
+  summary: string;
+  createdAt: string;
+}
+
+/** A chapter as the outline tree sees it: no prose, no outline fields. */
+export interface OutlineChapterSummary {
+  id: string;
+  arcId: string;
+  title: string;
+  ordinal: number;
+  type: ChapterType;
+  status: ChapterStatus;
+  povEntityId: string | null;
+  wordCount: number;
+  publishedAt: string | null;
+}
+
+export interface OutlineArcNode extends Arc {
+  chapters: OutlineChapterSummary[];
+}
+
+export interface OutlineVolumeNode extends Volume {
+  arcs: OutlineArcNode[];
+}
+
+export interface OutlineTree {
+  volumes: OutlineVolumeNode[];
+}
+
+/** What a deletion would destroy, counted from the real tables. */
+export interface OutlineDeletionImpact {
+  kind: OutlineNodeKind;
+  title: string;
+  childCount: number;
+  factCount: number;
+  illustrationCount: number;
+  wordCount: number;
+}
 
 export interface Entity {
   id: string;

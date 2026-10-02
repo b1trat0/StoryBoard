@@ -1,9 +1,10 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { chapters } from '../db/schema.js';
 import { toChapterDto } from '../db/mappers.js';
 import type {
   Chapter,
+  CreateChapterInput,
   SaveChapterBodyRequest,
   SaveChapterOutlineRequest,
 } from '../ipc/contract.js';
@@ -26,6 +27,9 @@ export class ChapterNotFoundError extends Error {
 export interface ChapterRepository {
   listByArc(arcId: string): Promise<Chapter[]>;
   findById(id: string): Promise<Chapter | null>;
+  nextOrdinal(arcId: string): Promise<number>;
+  create(input: CreateChapterInput): Promise<Chapter>;
+  remove(id: string): Promise<void>;
   saveBody(input: SaveChapterBodyRequest, wordCount: number): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
 }
@@ -47,6 +51,58 @@ export function createChapterRepository(): ChapterRepository {
       const rows = await db.select().from(chapters).where(eq(chapters.id, id)).limit(1);
       const row = rows[0];
       return row === undefined ? null : toChapterDto(row);
+    },
+
+    /**
+     * Appends after the last chapter in the arc.
+     *
+     * Ordinal is unique per arc, so the insert has to know where the end is. A
+     * null maximum means the arc is empty and the first chapter is 1, not 0.
+     */
+    async nextOrdinal(arcId) {
+      const db = getDb();
+      const rows = await db
+        .select({ value: sql<number | null>`max(${chapters.ordinal})` })
+        .from(chapters)
+        .where(eq(chapters.arcId, arcId));
+      // `?? -1` would make the first chapter ordinal 0; chapters are numbered from 1.
+      return (rows[0]?.value ?? 0) + 1;
+    },
+
+    async create(input) {
+      const db = getDb();
+      const ordinal = await this.nextOrdinal(input.arcId);
+      const rows = await db
+        .insert(chapters)
+        .values({
+          arcId: input.arcId,
+          title: input.title.trim(),
+          ordinal,
+          type: input.type,
+          status: input.status,
+        })
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error('the chapter insert returned no row');
+      }
+      return toChapterDto(row);
+    },
+
+    /**
+     * Cascades to the chapter's facts and illustration slots. Callers must ask the
+     * author what would be lost first: outline:describeDeletion exists for exactly
+     * that, and a fact whose source chapter is gone is gone with it.
+     */
+    async remove(id) {
+      const db = getDb();
+      const rows = await db
+        .delete(chapters)
+        .where(eq(chapters.id, id))
+        .returning({ id: chapters.id });
+      if (rows.length === 0) {
+        throw new ChapterNotFoundError(id);
+      }
     },
 
     async saveBody(input, wordCount) {

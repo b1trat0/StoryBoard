@@ -6,6 +6,7 @@ import type { GlossaryRepository, SaveGlossaryTermInput } from '../repositories/
 import type { IllustrationRepository } from '../repositories/illustration.repository.js';
 import type {
   Chapter,
+  CreateChapterInput,
   CreateIllustrationSlotRequest,
   GlossaryKind,
   GlossaryTerm,
@@ -26,6 +27,8 @@ import { RuleViolationError } from './storyboard.service.js';
 
 export interface ChapterService {
   listByArc(input: { arcId: string }): Promise<Chapter[]>;
+  create(input: CreateChapterInput): Promise<Chapter>;
+  remove(input: { id: string }): Promise<void>;
   saveBody(input: SaveChapterBodyRequest): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
 }
@@ -35,10 +38,39 @@ export function createChapterService(repo: ChapterRepository): ChapterService {
     listByArc: (input) => repo.listByArc(input.arcId),
 
     /**
+     * New chapters start as an outline with no prose, which is the state an author
+     * creates them in. The status is not inferred from anything: an author who wants
+     * a draft labelled as such sets it.
+     */
+    async create(input) {
+      const title = input.title.trim();
+      if (title.length === 0) {
+        throw new RuleViolationError('Give the chapter a title first.');
+      }
+      return repo.create({ ...input, title });
+    },
+
+    async remove(input) {
+      const existing = await repo.findById(input.id);
+      if (existing === null) {
+        throw new RuleViolationError('That chapter no longer exists.');
+      }
+      await repo.remove(input.id);
+    },
+
+    /**
      * word_count is derived here rather than by the renderer, because the value
      * is shown in the outline and in export previews and must agree everywhere.
      */
     async saveBody(input) {
+      // The prose save needs the same guard as the outline save. Without it the
+      // update matches no rows and the driver surfaces "Chapter <uuid> was not
+      // found", which is both a confusing message and one that leaks an internal
+      // identifier to the author.
+      const existing = await repo.findById(input.id);
+      if (existing === null) {
+        throw new RuleViolationError('That chapter no longer exists, so nothing was saved.');
+      }
       return repo.saveBody(input, countWords(input.bodyMd));
     },
 

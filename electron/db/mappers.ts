@@ -1,20 +1,24 @@
 import type {
   Ability,
+  Arc,
   Chapter,
   Entity,
   Fact,
   GlossaryTerm,
   Illustration,
   Relation,
+  Volume,
 } from '../ipc/contract.js';
 import type {
   AbilityRow,
+  ArcRow,
   ChapterRow,
   EntityRow,
   FactRow,
   GlossaryTermRow,
   IllustrationRow,
   RelationRow,
+  VolumeRow,
 } from './schema.js';
 
 /**
@@ -118,6 +122,28 @@ export function toFactDto(row: FactRow): Fact {
     status: row.status,
     createdAt: requiredIso(row.createdAt),
     updatedAt: requiredIso(row.updatedAt),
+  };
+}
+
+export function toVolumeDto(row: VolumeRow): Volume {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    ordinal: row.ordinal,
+    summary: row.summary,
+    createdAt: requiredIso(row.createdAt),
+  };
+}
+
+export function toArcDto(row: ArcRow): Arc {
+  return {
+    id: row.id,
+    volumeId: row.volumeId,
+    title: row.title,
+    ordinal: row.ordinal,
+    summary: row.summary,
+    createdAt: requiredIso(row.createdAt),
   };
 }
 

@@ -3,6 +3,13 @@ import { useCallback, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { getBridge } from './lib/bridge';
 import type { Entity, EntityType } from './lib/bridge';
+import { SECTIONS } from './lib/sections';
+import type { SectionId } from './lib/sections';
+import { AppNav } from './components/app-nav';
+import { EmptyState } from './components/ui/empty-state';
+import { ChapterEditor } from './features/chapters/chapter-editor';
+import { OutlineTree } from './features/chapters/outline-tree';
+import { useOutline } from './features/chapters/use-outline';
 import { EntityCreateDialog } from './features/entities/entity-create-dialog';
 import { EntityDetail } from './features/entities/entity-detail';
 import { EntityList } from './features/entities/entity-list';
@@ -12,13 +19,16 @@ import { useEntities } from './features/entities/use-entities';
 /**
  * Application shell.
  *
- * Three panes: types on the left, the list in the middle, the selected entry on
- * the right. The detail pane only appears when something is selected, so the
- * list gets the full width until it does.
+ * Two panes of navigation and one work area. The header chooses the section, the
+ * left pane navigates within it, and the middle pane is where the work happens. A
+ * section with nothing built yet says so instead of pretending to be empty.
  *
- * Every screen in this app will follow this shape: something always occupies the
- * left pane, the middle pane is the work area, and side panels are transient.
+ * The active project is a fixed id for now. The seed creates exactly one, and until
+ * there is a way to create another, reading it from configuration is more honest
+ * than a project picker that can only ever offer one choice.
  */
+const ACTIVE_PROJECT_ID = '00000000-0000-4000-8000-000000000001';
+
 export function App() {
   const {
     byType,
@@ -32,6 +42,9 @@ export function App() {
     remove,
   } = useEntities();
 
+  const outline = useOutline(ACTIVE_PROJECT_ID);
+
+  const [activeSection, setActiveSection] = useState<SectionId>('storybook');
   const [activeType, setActiveType] = useState<EntityType>('character');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -93,24 +106,40 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col bg-paper">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-4">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface pl-4 pr-4">
         <div className="flex items-baseline gap-2.5">
           <span className="font-serif text-[15px] font-semibold tracking-tight text-ink">
             StoryBoard
           </span>
           <span className="text-[13px] text-ink-muted">My Serial</span>
         </div>
+        <AppNav activeSection={activeSection} onSelectSection={setActiveSection} />
         <span className="text-[11px] text-ink-muted">
           Local only. Nothing leaves this machine.
         </span>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <EntitySidebar
-          activeType={activeType}
-          counts={counts}
-          onSelectType={onSelectType}
-        />
+        {activeSection === 'storybook' && (
+          <EntitySidebar
+            activeType={activeType}
+            counts={counts}
+            onSelectType={onSelectType}
+          />
+        )}
+
+        {activeSection === 'chapters' && (
+          <nav
+            aria-label="Outline"
+            className="flex w-72 shrink-0 flex-col border-r border-line bg-surface-sunken/40"
+          >
+            <OutlineTree
+              outline={outline}
+              selectedChapterId={outline.chapter?.id ?? null}
+              onSelectChapter={(id) => void outline.openChapter(id)}
+            />
+          </nav>
+        )}
 
         <div className="flex min-w-0 flex-1">
           {errorMessage !== null && (
@@ -136,31 +165,54 @@ export function App() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <EntityList
-              entities={entities}
-              type={activeType}
-              isLoading={isLoading}
-              selectedId={selectedId}
-              onSelect={(entity) => setSelectedId(entity.id)}
-              onCreate={() => setIsCreateOpen(true)}
-              canCreate={!isLoading}
-            />
+            {activeSection === 'storybook' && (
+              <EntityList
+                entities={entities}
+                type={activeType}
+                isLoading={isLoading}
+                selectedId={selectedId}
+                onSelect={(entity) => setSelectedId(entity.id)}
+                onCreate={() => setIsCreateOpen(true)}
+                canCreate={!isLoading}
+              />
+            )}
+
+            {activeSection === 'chapters' && (
+              <ChapterEditor
+                key={outline.chapter?.id ?? 'none'}
+                chapter={outline.chapter}
+                isLoading={outline.isChapterLoading}
+              />
+            )}
+
+            {!isBuiltSection(activeSection) && (
+              <div className="flex flex-1 items-center justify-center p-8">
+                <div className="w-full max-w-sm">
+                  <EmptyState
+                    title={`${sectionTitle(activeSection)} is not built yet`}
+                    body="The data behind this screen is already in the database. The screen is not."
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/*
-            Keyed on the selected id: switching entries remounts the panel, which
-            is what seeds its draft from the new entity. Without the key the panel
-            would keep showing, and editing, the previously selected entry.
+            Only the Storybook section has a third pane. Chapters use the editor as
+            their work area, so a transient detail panel beside it would crowd the
+            prose for no gain.
           */}
-          <EntityDetail
-            key={selectedId ?? 'none'}
-            entity={selected}
-            isPending={pendingId === selectedId}
-            onClose={() => setSelectedId(null)}
-            onSave={onSave}
-            onAddAlias={onAddAlias}
-            onDelete={onDelete}
-          />
+          {activeSection === 'storybook' && (
+            <EntityDetail
+              key={selectedId ?? 'none'}
+              entity={selected}
+              isPending={pendingId === selectedId}
+              onClose={() => setSelectedId(null)}
+              onSave={onSave}
+              onAddAlias={onAddAlias}
+              onDelete={onDelete}
+            />
+          )}
         </div>
       </div>
 
@@ -185,6 +237,15 @@ export function App() {
       />
     </div>
   );
+}
+
+/** True once a section has a real screen behind it. */
+function isBuiltSection(id: SectionId): boolean {
+  return SECTIONS.find((section) => section.id === id)?.isBuilt === true;
+}
+
+function sectionTitle(id: SectionId): string {
+  return SECTIONS.find((section) => section.id === id)?.label ?? id;
 }
 
 /**

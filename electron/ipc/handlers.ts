@@ -6,6 +6,7 @@ import type { IpcResult } from '../controllers/ipc-handler.js';
 import type { Logger } from '../lib/logger.js';
 import { createCatboxHost } from '../interfaces/catbox.interface.js';
 import { createChapterRepository } from '../repositories/chapter.repository.js';
+import { createOutlineRepository } from '../repositories/outline.repository.js';
 import { createEntityRepository } from '../repositories/entity.repository.js';
 import { createFactRepository } from '../repositories/fact.repository.js';
 import { createGlossaryRepository } from '../repositories/glossary.repository.js';
@@ -16,23 +17,32 @@ import {
   createGlossaryService,
   createIllustrationService,
 } from '../services/content.service.js';
+import { createOutlineService } from '../services/outline.service.js';
 import {
   createEntityService,
   createFactService,
   createRelationService,
+  RuleViolationError,
 } from '../services/storyboard.service.js';
 import {
   addEntityAliasRequestSchema,
+  arcSchema,
+  createArcRequestSchema,
+  createChapterRequestSchema,
   createEntityRequestSchema,
   createFactRequestSchema,
   createIllustrationSlotRequestSchema,
   createRelationRequestSchema,
+  createVolumeRequestSchema,
   chapterSchema,
+  deleteByIdRequestSchema,
   deleteEntityRequestSchema,
   deleteFactRequestSchema,
   deleteRelationRequestSchema,
+  describeOutlineDeletionRequestSchema,
   entitySchema,
   factSchema,
+  getChapterRequestSchema,
   glossaryTermSchema,
   illustrationSchema,
   listChaptersRequestSchema,
@@ -40,15 +50,21 @@ import {
   listFactsRequestSchema,
   listGlossaryRequestSchema,
   listIllustrationsRequestSchema,
+  listOutlineRequestSchema,
   listRelationsRequestSchema,
+  outlineDeletionImpactSchema,
+  outlineTreeSchema,
   relationWithKnowledgeSchema,
   saveChapterBodyRequestSchema,
   saveChapterOutlineRequestSchema,
   saveGlossaryTermRequestSchema,
   saveIllustrationRequestSchema,
+  updateArcRequestSchema,
   updateEntityRequestSchema,
   updateFactStatusRequestSchema,
+  updateVolumeRequestSchema,
   uploadIllustrationRequestSchema,
+  volumeSchema,
 } from './contract.js';
 
 /**
@@ -88,6 +104,7 @@ export function createHandlers(logger: Logger) {
     createCatboxHost(),
   );
   const glossaryService = createGlossaryService(createGlossaryRepository());
+  const outlineService = createOutlineService(createOutlineRepository());
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -198,6 +215,106 @@ export function createHandlers(logger: Logger) {
       listChaptersRequestSchema,
       chapterListSchema,
       (input) => chapterService.listByArc(input),
+    ),
+
+    [CHANNELS.outlineList]: handleIpc(
+      logger,
+      CHANNELS.outlineList,
+      listOutlineRequestSchema,
+      outlineTreeSchema,
+      (input) => outlineService.list(input),
+    ),
+
+    [CHANNELS.outlineDescribeDeletion]: handleIpc(
+      logger,
+      CHANNELS.outlineDescribeDeletion,
+      describeOutlineDeletionRequestSchema,
+      outlineDeletionImpactSchema,
+      (input) => outlineService.describeDeletion(input),
+    ),
+
+    [CHANNELS.outlineCreateVolume]: handleIpc(
+      logger,
+      CHANNELS.outlineCreateVolume,
+      createVolumeRequestSchema,
+      volumeSchema,
+      (input) => outlineService.createVolume(input),
+    ),
+
+    [CHANNELS.outlineUpdateVolume]: handleIpc(
+      logger,
+      CHANNELS.outlineUpdateVolume,
+      updateVolumeRequestSchema,
+      volumeSchema,
+      (input) => outlineService.updateVolume(input),
+    ),
+
+    [CHANNELS.outlineRemoveVolume]: handleIpc(
+      logger,
+      CHANNELS.outlineRemoveVolume,
+      deleteByIdRequestSchema,
+      null,
+      async (input) => {
+        await outlineService.removeVolume(input);
+      },
+    ),
+
+    [CHANNELS.outlineCreateArc]: handleIpc(
+      logger,
+      CHANNELS.outlineCreateArc,
+      createArcRequestSchema,
+      arcSchema,
+      (input) => outlineService.createArc(input),
+    ),
+
+    [CHANNELS.outlineUpdateArc]: handleIpc(
+      logger,
+      CHANNELS.outlineUpdateArc,
+      updateArcRequestSchema,
+      arcSchema,
+      (input) => outlineService.updateArc(input),
+    ),
+
+    [CHANNELS.outlineRemoveArc]: handleIpc(
+      logger,
+      CHANNELS.outlineRemoveArc,
+      deleteByIdRequestSchema,
+      null,
+      async (input) => {
+        await outlineService.removeArc(input);
+      },
+    ),
+
+    [CHANNELS.chaptersGet]: handleIpc(
+      logger,
+      CHANNELS.chaptersGet,
+      getChapterRequestSchema,
+      chapterSchema,
+      async (input) => {
+        const chapter = await chapterRepository.findById(input.id);
+        if (chapter === null) {
+          throw new RuleViolationError('That chapter no longer exists.');
+        }
+        return chapter;
+      },
+    ),
+
+    [CHANNELS.chaptersCreate]: handleIpc(
+      logger,
+      CHANNELS.chaptersCreate,
+      createChapterRequestSchema,
+      chapterSchema,
+      (input) => chapterService.create(input),
+    ),
+
+    [CHANNELS.chaptersRemove]: handleIpc(
+      logger,
+      CHANNELS.chaptersRemove,
+      deleteByIdRequestSchema,
+      null,
+      async (input) => {
+        await chapterService.remove(input);
+      },
     ),
 
     [CHANNELS.chaptersSaveBody]: handleIpc(

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CHANNELS } from '../../electron/ipc/handlers.js';
+import { CHANNELS, createHandlers } from '../../electron/ipc/handlers.js';
+import type { Logger } from '../../electron/lib/logger.js';
 import {
   deleteEntityRequestSchema,
   entitySchema,
@@ -12,6 +13,13 @@ import {
   glossaryTermSchema,
   illustrationSchema,
 } from '../../electron/ipc/contract.js';
+
+/** Constructing handlers wires services but touches no database, so a no-op logger is enough. */
+const silentLogger: Logger = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
 
 /**
  * Contract integrity.
@@ -318,5 +326,42 @@ describe('delete request schemas', () => {
         id: '11111111-1111-4111-8111-111111111111',
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('every channel reaches a handler', () => {
+  /**
+   * The silent-failure guard.
+   *
+   * A channel can exist in channels.ts and be forwarded by preload while nothing
+   * registers it in the main process. Nothing warns at build time, the type
+   * checker is happy, and the author gets a rejected promise the first time they
+   * click a button. Comparing the two sets catches a missing or misspelled entry
+   * the moment it is written.
+   */
+  it('registers a handler for every declared channel', () => {
+    const handlers = createHandlers(silentLogger);
+    const registered = Object.keys(handlers).sort();
+    const declared = Object.values(CHANNELS).sort();
+
+    expect(registered).toEqual(declared);
+  });
+
+  it('registers no handler for a channel that was never declared', () => {
+    const declared = new Set<string>(Object.values(CHANNELS));
+
+    for (const name of Object.keys(createHandlers(silentLogger))) {
+      expect(declared.has(name)).toBe(true);
+    }
+  });
+
+  it('names the missing channels rather than only reporting a length mismatch', () => {
+    const handlers = createHandlers(silentLogger) as Record<string, unknown>;
+    // Simulate the exact failure: a channel declared and forwarded but never wired.
+    delete handlers[CHANNELS.outlineCreateVolume];
+
+    const missing = Object.values(CHANNELS).filter((name) => !(name in handlers));
+
+    expect(missing).toEqual([CHANNELS.outlineCreateVolume]);
   });
 });
