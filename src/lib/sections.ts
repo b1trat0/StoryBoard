@@ -12,7 +12,7 @@ export const SECTIONS = [
   { id: 'glossary', label: 'Glossary', isBuilt: false },
   { id: 'relations', label: 'Relations', isBuilt: false },
   { id: 'illustrations', label: 'Illustrations', isBuilt: false },
-  { id: 'export', label: 'Royal Road export', isBuilt: false },
+  { id: 'export', label: 'Royal Road export', isBuilt: true },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];

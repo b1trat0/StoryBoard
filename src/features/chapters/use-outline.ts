@@ -24,8 +24,18 @@ export interface OutlineState {
   errorMessage: string | null;
   pendingKey: string | null;
   chapter: Chapter | null;
+  /** The highlighted chapter in the tree, which may not be loaded. */
+  selectedChapterId: string | null;
   isChapterLoading: boolean;
   reload: () => Promise<void>;
+  /**
+   * Moves the selection without reading the chapter.
+   *
+   * The export preview needs to know which chapter is selected but does not need
+   * its prose, and making it wait on `openChapter` would read the same row twice.
+   */
+  selectChapter: (chapterId: string) => void;
+  /** Selects a chapter and loads it, for the editor. */
   openChapter: (chapterId: string) => Promise<void>;
   createVolume: (input: { title: string; summary?: string }) => Promise<Volume>;
   createArc: (input: { volumeId: string; title: string; summary?: string }) => Promise<Arc>;
@@ -56,6 +66,7 @@ export function useOutline(projectId: string): OutlineState {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [chapter, setChapter] = useState<Chapter | null>(null);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [isChapterLoading, setIsChapterLoading] = useState(false);
 
   const reload = useCallback(async () => {
@@ -84,7 +95,12 @@ export function useOutline(projectId: string): OutlineState {
     void reload();
   }, [reload]);
 
+  const selectChapter = useCallback((chapterId: string) => {
+    setSelectedChapterId(chapterId);
+  }, []);
+
   const openChapter = useCallback(async (chapterId: string) => {
+    setSelectedChapterId(chapterId);
     const bridge = getBridge();
     if (bridge === null) {
       return;
@@ -160,6 +176,7 @@ export function useOutline(projectId: string): OutlineState {
       // The open chapter may have been the one deleted, or may have been deleted
       // from under the editor by removing its arc or volume.
       setChapter((current) => (current !== null && current.id === id ? null : current));
+      setSelectedChapterId((current) => (current === id ? null : current));
     },
     [runMutation],
   );
@@ -170,8 +187,10 @@ export function useOutline(projectId: string): OutlineState {
     errorMessage,
     pendingKey,
     chapter,
+    selectedChapterId,
     isChapterLoading,
     reload,
+    selectChapter,
     openChapter,
     createVolume,
     createArc,

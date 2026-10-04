@@ -108,6 +108,13 @@ export interface StoryBoardBridge {
     }): Promise<Illustration>;
     uploadToHost(input: { id: string }): Promise<Illustration>;
   };
+  /**
+   * The first step of the export pipeline and the only one that writes nothing.
+   * Reviewed before any file is written to disk.
+   */
+  release: {
+    previewChapter(input: { chapterId: string }): Promise<ChapterRelease>;
+  };
 }
 
 export type EntityType = 'character' | 'place' | 'faction' | 'item' | 'rule';
@@ -306,6 +313,57 @@ export interface Illustration {
   caption: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** How badly a preview problem affects publishing. */
+export type ReleaseSeverity = 'blocker' | 'warning';
+
+/** Machine-readable causes, so the preview can group them. */
+export type ReleaseWarningCode =
+  | 'not_finished'
+  | 'too_short'
+  | 'over_length'
+  | 'unconverted_markdown'
+  | 'unuploaded_image'
+  | 'missing_alt'
+  | 'unknown_dimensions'
+  | 'anchor_out_of_range';
+
+/** One thing the author needs to know before publishing. */
+export interface ReleaseWarning {
+  code: ReleaseWarningCode;
+  severity: ReleaseSeverity;
+  message: string;
+}
+
+/**
+ * One block of the chapter body in publication order.
+ *
+ * Images are separate blocks because their anchor is a paragraph index, so they sit
+ * between paragraphs rather than inside one.
+ */
+export type ReleaseBlock =
+  | { kind: 'paragraph'; html: string; paragraphIndex: number }
+  | {
+      kind: 'image';
+      imageHtml: string;
+      captionHtml: string;
+      illustrationId: string;
+      afterParagraphIndex: number;
+      isMisplaced: boolean;
+    };
+
+/** What one chapter will look like once published. */
+export interface ChapterRelease {
+  chapterId: string;
+  title: string;
+  preNoteHtml: string;
+  blocks: ReleaseBlock[];
+  postNoteHtml: string;
+  wordCount: number;
+  isExcluded: boolean;
+  exclusionReason: string | null;
+  warnings: ReleaseWarning[];
 }
 
 /**

@@ -106,3 +106,41 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Release preview body.
+ *
+ * The preview renders the HTML that will actually be sent to Royal Road, so this
+ * block is display-only. Royal Road itself receives the tag as written, including
+ * any width and height it carries, and strips class attributes entirely — which is
+ * exactly why the sizing below lives here and not on the exported tag.
+ *
+ * `max-width: 100%` is the one rule that matters. An illustration stored without
+ * recorded dimensions is emitted without width and height, and without this it
+ * would render at its natural size and blow out the reading column.
+ */
+@layer components {
+  .release-preview img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0.5rem 0;
+    border-radius: 2px;
+  }
+
+  /* A scene break in the preview. Royal Road receives the tag, not this. */
+  .release-preview hr {
+    margin: 1.5rem auto;
+    width: 33%;
+    border: 0;
+    border-top: 1px solid var(--color-line-strong);
+  }
+
+  .release-preview em {
+    display: block;
+    color: var(--color-ink-muted);
+    font-size: 0.9em;
+    font-style: italic;
+    text-align: center;
+  }
+}

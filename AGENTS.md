@@ -240,9 +240,19 @@ storage format can be pasted straight in.
 
 Export pipeline, in order:
 
-1. **Release preview** — one screen showing the chapter and image placements exactly as
+1. **Release preview** - one screen showing the chapter and image placements exactly as
    they will appear, reviewed before any file is written. This is where an image landing
-   two paragraphs late gets caught.
+   two paragraphs late gets caught. **Built.** `buildChapterRelease` in
+   `electron/lib/release-chapter.ts` is the pure assembler, `release.service.ts` reads the
+   stored chapter, and `src/features/export/release-preview.tsx` renders it. Two decisions
+   worth keeping: the preview reads committed data and never an editor buffer, so it
+   cannot show one version and export another; and it renders the outgoing HTML rather
+   than re-deriving it from the markdown, because a second implementation of the export
+   rules would eventually disagree with the first. Blockers and advisories are visually
+   distinct, because a list that mixes a missing alt text with a word-count note gets
+   skimmed past. Interludes are excluded from the output but still listed, with the
+   reason shown, since a chapter that silently vanishes is the failure this app exists
+   to prevent.
 2. **`.docx` per volume** for bulk import — headings to chapter titles, no junk formatting.
 3. **`.html` per chapter** for any chapter containing illustrations.
 4. **Markdown + JSON archive** of the whole project. This is the author's backup; it is

@@ -15,6 +15,7 @@ import { EntityDetail } from './features/entities/entity-detail';
 import { EntityList } from './features/entities/entity-list';
 import { EntitySidebar } from './features/entities/entity-sidebar';
 import { useEntities } from './features/entities/use-entities';
+import { ReleasePreview } from './features/export/release-preview';
 
 /**
  * Application shell.
@@ -128,16 +129,24 @@ export function App() {
           />
         )}
 
-        {activeSection === 'chapters' && (
+        {(activeSection === 'chapters' || activeSection === 'export') && (
           <nav
             aria-label="Outline"
             className="flex w-72 shrink-0 flex-col border-r border-line bg-surface-sunken/40"
           >
-            <OutlineTree
-              outline={outline}
-              selectedChapterId={outline.chapter?.id ?? null}
-              onSelectChapter={(id) => void outline.openChapter(id)}
-            />
+<OutlineTree
+                outline={outline}
+                selectedChapterId={outline.selectedChapterId}
+                onSelectChapter={(id) => {
+                  if (activeSection === 'export') {
+                    // The preview reads the committed chapter itself, so selecting
+                    // must not pull the editor's copy of the prose into memory.
+                    outline.selectChapter(id);
+                    return;
+                  }
+                  void outline.openChapter(id);
+                }}
+              />
           </nav>
         )}
 
@@ -183,6 +192,14 @@ export function App() {
                 chapter={outline.chapter}
                 isLoading={outline.isChapterLoading}
                 onSaveOutline={outline.saveChapterOutline}
+              />
+            )}
+
+            {activeSection === 'export' && (
+              <ReleasePreview
+                key={outline.selectedChapterId ?? 'none'}
+                chapterId={outline.selectedChapterId}
+                isOutlineLoading={outline.isLoading}
               />
             )}
 
