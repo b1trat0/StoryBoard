@@ -44,6 +44,7 @@ export const CHANNELS = {
   illustrationsCreateSlot: 'illustrations:createSlot',
   illustrationsUpdateSlot: 'illustrations:updateSlot',
   illustrationsUploadToHost: 'illustrations:uploadToHost',
+  releasePreviewChapter: 'release:previewChapter',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

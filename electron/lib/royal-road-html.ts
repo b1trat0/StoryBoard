@@ -1,4 +1,5 @@
 import { splitParagraphs } from './chapter-text.js';
+import { escapeHtmlText } from './html-escape.js';
 
 /**
  * Converts the author's plain markdown into HTML that Royal Road actually renders.
@@ -32,6 +33,21 @@ export interface RoyalRoadConversion {
 }
 
 /**
+ * Result of converting text while keeping the paragraph boundaries addressable.
+ *
+ * Indices line up with `splitParagraphs` on the same input, which is what
+ * `illustrations.after_paragraph_index` is defined against. This is deliberately
+ * not a subtype of `RoyalRoadConversion`: the joined form is derived from this
+ * one, not the other way round.
+ */
+export interface RoyalRoadParagraphConversion {
+  /** One HTML string per source paragraph, in order. */
+  paragraphs: string[];
+  /** Every construct Royal Road cannot render, deduplicated and in order. */
+  warnings: string[];
+}
+
+/**
  * Royal Road is single-spaced with no paragraph spacing control, so a paragraph break
  * is expressed as consecutive break tags. AGENTS.md fixes this at two.
  */
@@ -61,17 +77,6 @@ const UNCONVERTIBLE_BLOCKS: readonly { pattern: RegExp; label: string }[] = [
   { pattern: /(?<!!)\[[^\]]+\]\([^)]*\)/, label: 'markdown link' },
   { pattern: /`[^`]+`/, label: 'inline code' },
 ];
-
-/**
- * Escapes the three characters that would otherwise be read as markup.
- *
- * Fantasy prose contains angle brackets and ampersands in ordinary sentences, and an
- * unescaped `<` silently swallows the rest of the paragraph in the browser. Quotes are
- * not escaped because no attribute is ever built from authored text here.
- */
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 /**
  * Applies the emphasis conversions, outermost first.
@@ -121,7 +126,7 @@ function convertLine(line: string, warnings: string[]): string {
     return '<hr />';
   }
   collectWarnings(line, warnings);
-  return applyEmphasis(escapeHtml(line));
+  return applyEmphasis(escapeHtmlText(line));
 }
 
 /**
@@ -138,6 +143,34 @@ function convertParagraph(paragraph: string, warnings: string[]): string {
 }
 
 /**
+ * Converts authored markdown into Royal Road HTML, one entry per paragraph.
+ *
+ * The release preview needs the paragraphs separately, not pre-joined: an
+ * illustration is anchored to a paragraph index, so an image has to be inserted
+ * between paragraph 4 and paragraph 5 rather than appended to a finished string.
+ * Splitting the joined output on the gap would work today but couples the image
+ * placement to the exact gap string, and that string is not a stable interface.
+ *
+ * @param bodyMd - The author's stored text, treated as plain markdown with
+ *   blank-line-separated paragraphs and never as CommonMark.
+ * @returns One HTML string per source paragraph, plus every construct that could
+ *   not be translated. The warnings are informational; the paragraphs are still
+ *   usable, with untranslatable text left visible as literal characters.
+ */
+export function toRoyalRoadParagraphs(bodyMd: string): RoyalRoadParagraphConversion {
+  const warnings: string[] = [];
+  const paragraphs = splitParagraphs(bodyMd).map((paragraph) =>
+    convertParagraph(paragraph, warnings),
+  );
+  return {
+    paragraphs,
+    // Deduplicated so a chapter with forty unconverted list items reports one line
+    // rather than burying the release preview.
+    warnings: [...new Set(warnings)],
+  };
+}
+
+/**
  * Converts authored markdown into Royal Road HTML.
  *
  * @param bodyMd - The author's stored text. Treated as plain markdown with
@@ -147,14 +180,6 @@ function convertParagraph(paragraph: string, warnings: string[]): string {
  *   visible as literal characters.
  */
 export function toRoyalRoadHtml(bodyMd: string): RoyalRoadConversion {
-  const warnings: string[] = [];
-  const paragraphs = splitParagraphs(bodyMd).map((paragraph) =>
-    convertParagraph(paragraph, warnings),
-  );
-  return {
-    html: paragraphs.join(PARAGRAPH_GAP),
-    // Deduplicated so a chapter with forty unconverted list items reports one line
-    // rather than burying the release preview.
-    warnings: [...new Set(warnings)],
-  };
+  const { paragraphs, warnings } = toRoyalRoadParagraphs(bodyMd);
+  return { html: paragraphs.join(PARAGRAPH_GAP), warnings };
 }

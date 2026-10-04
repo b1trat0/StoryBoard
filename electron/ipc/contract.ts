@@ -272,6 +272,78 @@ export const illustrationSchema = z.object({
   updatedAt: isoTimestampSchema,
 });
 
+// --- release preview --------------------------------------------------------
+
+/**
+ * How badly a preview problem affects publishing.
+ *
+ * `blocker` means Royal Road will refuse the chapter or the output will be visibly
+ * wrong. `warning` means the chapter publishes but the author probably did not
+ * intend it. The preview needs the distinction because a screen that lists fifteen
+ * things as equally urgent is a screen the author learns to ignore.
+ */
+export const releaseSeveritySchema = z.enum(['blocker', 'warning']);
+
+/** Machine-readable causes, so the preview can group and tests can assert. */
+export const releaseWarningCodeSchema = z.enum([
+  'not_finished',
+  'too_short',
+  'over_length',
+  'unconverted_markdown',
+  'unuploaded_image',
+  'missing_alt',
+  'unknown_dimensions',
+  'anchor_out_of_range',
+]);
+
+export const releaseWarningSchema = z.object({
+  code: releaseWarningCodeSchema,
+  severity: releaseSeveritySchema,
+  message: z.string(),
+});
+
+/**
+ * One block of the chapter body in publication order.
+ *
+ * Images are separate blocks rather than embedded in paragraph HTML because their
+ * anchor is a paragraph index, so they have to be positioned between paragraphs
+ * rather than inside one.
+ */
+export const releaseBlockSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('paragraph'),
+    html: z.string(),
+    paragraphIndex: z.number().int().nonnegative(),
+  }),
+  z.object({
+    kind: z.literal('image'),
+    imageHtml: z.string(),
+    captionHtml: z.string(),
+    illustrationId: uuidSchema,
+    afterParagraphIndex: z.number().int().nonnegative(),
+    isMisplaced: z.boolean(),
+  }),
+]);
+
+/**
+ * What one chapter will look like once published.
+ *
+ * `preNoteHtml` and `postNoteHtml` are separate from `blocks` because Royal Road's
+ * form renders the notes outside the chapter content, and because a note is
+ * housekeeping rather than prose: it must not be caught up in paragraph anchoring
+ * or in the character count that gates publication.
+ */
+export const chapterReleaseSchema = z.object({
+  chapterId: uuidSchema,
+  title: z.string(),
+  preNoteHtml: z.string(),
+  blocks: z.array(releaseBlockSchema),
+  postNoteHtml: z.string(),
+  wordCount: z.number().int().nonnegative(),
+  isExcluded: z.boolean(),
+  exclusionReason: z.string().nullable(),
+  warnings: z.array(releaseWarningSchema),
+});
 export type Entity = z.infer<typeof entitySchema>;
 export type Ability = z.infer<typeof abilitySchema>;
 export type Relation = z.infer<typeof relationSchema>;
@@ -551,6 +623,22 @@ export type ListIllustrationsRequest = z.infer<typeof listIllustrationsRequestSc
 export type ListGlossaryRequest = z.infer<typeof listGlossaryRequestSchema>;
 
 /**
+ * Preview one chapter's publishable form.
+ *
+ * Preview only, by design. Writing an export file is a separate deliberate step,
+ * because Royal Road has no API and every release ends with the author pasting a
+ * file into a browser form by hand.
+ */
+export const previewChapterRequestSchema = z.object({
+  chapterId: uuidSchema,
+});
+
+export type ReleaseWarning = z.infer<typeof releaseWarningSchema>;
+export type ReleaseBlock = z.infer<typeof releaseBlockSchema>;
+export type ChapterRelease = z.infer<typeof chapterReleaseSchema>;
+export type PreviewChapterRequest = z.infer<typeof previewChapterRequestSchema>;
+
+/**
  * The API surface exposed on window.storyboard. Every method returns a promise,
  * every argument is validated in main, every return value is validated in main
  * before it is sent back.
@@ -611,6 +699,14 @@ export interface StoryBoardApi {
       caption?: string;
     }): Promise<Illustration>;
     uploadToHost(input: { id: string }): Promise<Illustration>;
+  };
+  /**
+   * The first step of the export pipeline, and the only one that writes nothing.
+   * Every file later steps produce comes from what this shows, so it is reviewed
+   * before anything is written to disk.
+   */
+  release: {
+    previewChapter(input: PreviewChapterRequest): Promise<ChapterRelease>;
   };
 }
 

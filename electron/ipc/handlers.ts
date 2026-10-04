@@ -17,6 +17,7 @@ import {
   createGlossaryService,
   createIllustrationService,
 } from '../services/content.service.js';
+import { createReleaseService } from '../services/release.service.js';
 import { createOutlineService } from '../services/outline.service.js';
 import {
   createEntityService,
@@ -27,6 +28,7 @@ import {
 import {
   addEntityAliasRequestSchema,
   arcSchema,
+  chapterReleaseSchema,
   createArcRequestSchema,
   createChapterRequestSchema,
   createEntityRequestSchema,
@@ -54,6 +56,7 @@ import {
   listRelationsRequestSchema,
   outlineDeletionImpactSchema,
   outlineTreeSchema,
+  previewChapterRequestSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -105,6 +108,13 @@ export function createHandlers(logger: Logger) {
   );
   const glossaryService = createGlossaryService(createGlossaryRepository());
   const outlineService = createOutlineService(createOutlineRepository());
+  // The release preview reads committed chapter and illustration data, so it takes
+  // the same shared chapter repository rather than a second one that could see a
+  // different state.
+  const releaseService = createReleaseService(
+    chapterRepository,
+    createIllustrationRepository(),
+  );
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -379,6 +389,14 @@ export function createHandlers(logger: Logger) {
       uploadIllustrationRequestSchema,
       illustrationSchema,
       (input) => illustrationService.uploadToHost(input),
+    ),
+
+    [CHANNELS.releasePreviewChapter]: handleIpc(
+      logger,
+      CHANNELS.releasePreviewChapter,
+      previewChapterRequestSchema,
+      chapterReleaseSchema,
+      (input) => releaseService.previewChapter(input),
     ),
   } satisfies Record<ChannelName, (raw: unknown) => Promise<IpcResult<unknown>>>;
 }
