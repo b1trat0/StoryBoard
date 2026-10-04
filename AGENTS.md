@@ -210,9 +210,17 @@ storage format can be pasted straight in.
 
 - **Royal Road understands no markdown.** The editor toolbar is bold, italic, underline and
   strikethrough; anything more goes in through BBCode or the source-code view. `*emphasis*`
-  and `**bold**` reach a published chapter as literal asterisks. Markdown must be converted
-  at export or must not be written in the first place. This is an open decision, not a
-  settled rule.
+  and `**bold**` reach a published chapter as literal asterisks. **Settled decision: markdown
+  is converted at export, not prohibited at authoring time.** The author writes plain markdown
+  on disk and in Obsidian, and `toRoyalRoadHtml` in `electron/lib/royal-road-html.ts`
+  translates it at the export boundary. Two consequences are deliberate:
+  - **It is not a markdown engine.** It converts emphasis (`**bold**`, `*italic*`, `_italic_`,
+    `~~strikethrough~~`) and scene breaks (`---`, `***`, `* * *`, `___`) and nothing else. A
+    general parser would need a dependency and would silently reshape the author's files.
+  - **Anything it cannot translate is reported, not passed through.** Headings, lists,
+    blockquotes, links, images and code are returned as `warnings` alongside the HTML so the
+    release preview can show them. A literal `#` reaching a published chapter is worse than a
+    loud message, because the author has no way to notice it after the fact.
 - **A blank line is a paragraph; a single newline is a line break.** This is not a guess:
   Royal Road's own "clean paste" option exists to repair content where "some editors only use
   line breaks instead of paragraphs for spacing". `splitParagraphs` already implements
