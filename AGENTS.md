@@ -25,6 +25,14 @@ it should be required to work on the codebase.
 
 4. **The author makes every decision.** No automatic writes to canonical data.
 
+5. **Never discard the author's typing without asking.** The prose buffer lives in
+   `useChapterDraft`, which the shell calls *above* the section switch, because
+   `ChapterEditor` unmounts whenever another section is showing and a buffer held inside
+   it would be destroyed by simply looking at the export preview. Switching sections must
+   never lose unsaved prose. Switching chapters genuinely replaces the buffer, so that
+   one asks first. Do not move the buffer back into the editor, and do not add a bare
+   `key` on the editor: that remounts it and silently discards whatever was typed.
+
 ## Naming
 
 - Files: kebab-case (`chapter-editor.tsx`, `royal-road-export.ts`)

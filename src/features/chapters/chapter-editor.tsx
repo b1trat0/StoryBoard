@@ -1,11 +1,10 @@
 import { FloppyDisk } from '@phosphor-icons/react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { EmptyState, Skeleton } from '../../components/ui/empty-state';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { describeError, getBridge } from '../../lib/bridge';
 import type { Chapter, ChapterStatus, ChapterType } from '../../lib/bridge';
 import { cn } from '../../lib/utils';
 import {
@@ -16,14 +15,28 @@ import {
 } from './chapter-labels';
 
 export interface ChapterEditorProps {
-  chapter: Chapter | null;
-  isLoading: boolean;
   /**
-   * Persists outline fields and refreshes the outline tree. Injected rather than
-   * taken from the bridge here so the tree the author is looking at cannot fall out
-   * of step with the chapter they just renamed.
+   * The chapter as typed, or null when none is open.
+   *
+   * Owned by `useChapterDraft` rather than by this component. The editor is unmounted
+   * whenever the author visits another section, so state held here would not survive
+   * the trip.
    */
-  onSaveOutline: (id: string, patch: Partial<Chapter>) => Promise<void>;
+  draft: Chapter | null;
+  isLoading: boolean;
+  /** True when prose or an author note differs from what was last written. */
+  isDirty: boolean;
+  /** Title as last written, so a blur can tell a real edit from a no-op commit. */
+  savedTitle: string | null;
+  isSavingProse: boolean;
+  errorMessage: string | null;
+  updateDraft: (patch: Partial<Chapter>) => void;
+  /**
+   * Persists outline fields and refreshes the outline tree. The hook owns the call so
+   * the tree reloads with it; see `useChapterDraft`.
+   */
+  saveOutlineField: (patch: Partial<Chapter>) => Promise<void>;
+  commitProse: () => Promise<void>;
 }
 
 /**
@@ -38,66 +51,21 @@ export interface ChapterEditorProps {
  * body_md stays plain markdown, blank-line separated, so the same text is still
  * usable in Obsidian or any editor outside this app.
  *
- * The draft is seeded from props once and then owned by this component. App keys it
- * by chapter id, so switching chapters remounts it; a refetch of the chapter already
- * open does not, which is what keeps unsaved prose from being overwritten by a
- * background reload.
+ * Controlled, with no state of its own beyond the outline fields' local typing. The
+ * buffer belongs to `useChapterDraft`, which lives above the section switch so that
+ * looking at another section cannot destroy unsaved prose.
  */
-export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEditorProps) {
-  // Owned from first render, not synced from props: see the note above.
-  const [draft, setDraft] = useState<Chapter | null>(chapter);
-  // What the database currently holds. `draft` is what is on screen; this is what
-  // has been written. Comparing the two is what makes "unsaved" honest, because the
-  // incoming prop is the chapter as it was fetched and does not change after a save.
-  const [saved, setSaved] = useState<Chapter | null>(chapter);
-  const [isSavingProse, setIsSavingProse] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const onFieldChange = useCallback((patch: Partial<Chapter>) => {
-    setDraft((current) => (current === null ? null : { ...current, ...patch }));
-  }, []);
-
-  const saveOutlineField = useCallback(
-    async (patch: Partial<Chapter>) => {
-      const current = draft;
-      if (current === null) {
-        return;
-      }
-      setErrorMessage(null);
-      try {
-        // The hook owns this call so the tree reloads with it; see onSaveOutline.
-        await onSaveOutline(current.id, patch);
-        setSaved((previous) => (previous === null ? null : { ...previous, ...patch }));
-      } catch (err) {
-        setErrorMessage(describeError(err));
-      }
-    },
-    [draft, onSaveOutline],
-  );
-
-  const commitProse = useCallback(async () => {
-    const bridge = getBridge();
-    const current = draft;
-    if (bridge === null || current === null) {
-      return;
-    }
-    setIsSavingProse(true);
-    setErrorMessage(null);
-    try {
-      const persisted = await bridge.chapters.saveProse({
-        id: current.id,
-        bodyMd: current.bodyMd,
-        authorNotePre: current.authorNotePre,
-        authorNotePost: current.authorNotePost,
-      });
-      setDraft(persisted);
-      setSaved(persisted);
-    } catch (err) {
-      setErrorMessage(describeError(err));
-    } finally {
-      setIsSavingProse(false);
-    }
-  }, [draft]);
+export function ChapterEditor({
+  draft,
+  isLoading,
+  isDirty,
+  savedTitle,
+  isSavingProse,
+  errorMessage,
+  updateDraft: onFieldChange,
+  saveOutlineField: saveOutline,
+  commitProse,
+}: ChapterEditorProps) {
 
   if (isLoading) {
     return (
@@ -121,11 +89,6 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
       </div>
     );
   }
-
-  const isProseDirty =
-    draft.bodyMd !== (saved?.bodyMd ?? '') ||
-    draft.authorNotePre !== (saved?.authorNotePre ?? '') ||
-    draft.authorNotePost !== (saved?.authorNotePost ?? '');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -155,8 +118,8 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
               onChange={(event) => onFieldChange({ title: event.target.value })}
               onBlur={() => {
                 const trimmed = draft.title.trim();
-                if (trimmed.length > 0 && trimmed !== saved?.title) {
-                  void saveOutlineField({ title: trimmed });
+                if (trimmed.length > 0 && trimmed !== savedTitle) {
+                  void saveOutline({ title: trimmed });
                 }
               }}
               className="h-auto border-0 bg-transparent px-0 py-1 font-serif text-2xl font-semibold shadow-none focus-visible:ring-0"
@@ -181,7 +144,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 onChange={(event) => {
                   const status = event.target.value as ChapterStatus;
                   onFieldChange({ status });
-                  void saveOutlineField({ status });
+                  void saveOutline({ status });
                 }}
                 className="h-9 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink"
               >
@@ -201,7 +164,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 onChange={(event) => {
                   const type = event.target.value as ChapterType;
                   onFieldChange({ type });
-                  void saveOutlineField({ type });
+                  void saveOutline({ type });
                 }}
                 className="h-9 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink"
               >
@@ -233,7 +196,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 value={draft.outlineGoal}
                 onCommit={(value) => {
                   onFieldChange({ outlineGoal: value });
-                  void saveOutlineField({ outlineGoal: value });
+                  void saveOutline({ outlineGoal: value });
                 }}
               />
               <OutlineField
@@ -242,7 +205,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 value={draft.outlineConflict}
                 onCommit={(value) => {
                   onFieldChange({ outlineConflict: value });
-                  void saveOutlineField({ outlineConflict: value });
+                  void saveOutline({ outlineConflict: value });
                 }}
               />
               <OutlineField
@@ -251,7 +214,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 value={draft.outlineOutcome}
                 onCommit={(value) => {
                   onFieldChange({ outlineOutcome: value });
-                  void saveOutlineField({ outlineOutcome: value });
+                  void saveOutline({ outlineOutcome: value });
                 }}
               />
               <OutlineField
@@ -260,7 +223,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
                 value={draft.outlineBeat}
                 onCommit={(value) => {
                   onFieldChange({ outlineBeat: value });
-                  void saveOutlineField({ outlineBeat: value });
+                  void saveOutline({ outlineBeat: value });
                 }}
               />
             </div>
@@ -271,7 +234,7 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
               <h2 className="font-serif text-[15px] font-semibold text-ink">Prose</h2>
               <span className="font-mono text-xs tabular-nums text-ink-muted">
                 {countWords(draft.bodyMd).toLocaleString()} words
-                {isProseDirty && <span className="ml-1.5 text-accent">unsaved</span>}
+                {isDirty && <span className="ml-1.5 text-accent">unsaved</span>}
               </span>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
@@ -337,9 +300,9 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
 
       <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface px-6 py-3">
         <span className="mr-auto text-[12px] text-ink-muted">
-          {isProseDirty ? 'Unsaved prose' : 'Everything saved'}
+          {isDirty ? 'Unsaved prose' : 'Everything saved'}
         </span>
-        <Button onClick={() => void commitProse()} disabled={!isProseDirty || isSavingProse}>
+        <Button onClick={() => void commitProse()} disabled={!isDirty || isSavingProse}>
           <FloppyDisk size={15} weight="bold" />
           {isSavingProse ? 'Saving...' : 'Save prose'}
         </Button>
@@ -368,8 +331,10 @@ interface OutlineFieldProps {
 function OutlineField({ id, label, value, onCommit }: OutlineFieldProps) {
   const [text, setText] = useState(value);
 
-  // A chapter switch remounts the whole editor, so this only covers the case where
-  // the parent replaced the value underneath a field the author was not editing.
+  // A chapter switch no longer remounts the editor, because the buffer moved into
+  // `useChapterDraft` so that it survives a section switch. This is what adopts the new
+  // chapter's value now, and also covers the parent replacing the value underneath a
+  // field the author was not editing.
   const [lastValue, setLastValue] = useState(value);
   if (value !== lastValue) {
     setLastValue(value);

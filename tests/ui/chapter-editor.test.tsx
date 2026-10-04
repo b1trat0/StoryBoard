@@ -2,6 +2,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChapterEditor } from '../../src/features/chapters/chapter-editor.js';
+import { useChapterDraft } from '../../src/features/chapters/use-chapter-draft.js';
 import type { Chapter } from '../../src/lib/bridge.js';
 
 /**
@@ -100,25 +101,64 @@ function blur(element: HTMLElement) {
 }
 
 /**
- * Renders the editor the way App does: outline saves leave through the injected
- * function, which is where the outline tree refresh lives.
+ * Renders the editor the way App does, including the real `useChapterDraft` above it.
  *
- * The stub is called through the installed bridge rather than captured in a closure
- * so that the spy a test grabbed from `installBridge` is the same one the editor
- * reaches. A test that stubs the bridge and bypasses this wiring would keep passing
- * after the editor stopped refreshing the tree, which is exactly the regression
- * these tests exist to catch.
+ * Two wirings here are load-bearing. Outline saves leave through the injected function,
+ * which is where the outline tree refresh lives. And the buffer is owned by the hook
+ * rather than by the editor, because the editor unmounts when the author visits
+ * another section. A test that stubbed the bridge but bypassed either one would keep
+ * passing after the behaviour it exists to catch had broken.
  */
-function renderEditor(props: { chapter: Chapter | null; isLoading: boolean }) {
-  const onSaveOutline = async (id: string, patch: Partial<Chapter>) => {
-    const bridge = (
-      window as {
-        storyboard?: { chapters: { saveOutline: (input: unknown) => Promise<unknown> } };
-      }
-    ).storyboard;
-    await bridge?.chapters.saveOutline({ id, ...patch });
-  };
-  return render(<ChapterEditor {...props} onSaveOutline={onSaveOutline} />);
+function renderEditor(props: {
+  chapter: Chapter | null;
+  isLoading: boolean;
+  onSaveOutline?: (id: string, patch: Partial<Chapter>) => Promise<void>;
+}) {
+  const {
+    chapter,
+    isLoading,
+    onSaveOutline = saveOutlineThroughBridge,
+  } = props;
+  return render(
+    <EditorHarness chapter={chapter} isLoading={isLoading} onSaveOutline={onSaveOutline} />,
+  );
+}
+
+/** The shell's half of the wiring, so each test only supplies the chapter. */
+function EditorHarness({
+  chapter,
+  isLoading,
+  onSaveOutline,
+}: {
+  chapter: Chapter | null;
+  isLoading: boolean;
+  onSaveOutline: (id: string, patch: Partial<Chapter>) => Promise<void>;
+}) {
+  const draft = useChapterDraft(chapter, onSaveOutline);
+
+  return (
+    <ChapterEditor
+      draft={draft.draft}
+      isLoading={isLoading}
+      isDirty={draft.isProseDirty}
+      savedTitle={draft.savedTitle}
+      isSavingProse={draft.isSavingProse}
+      errorMessage={draft.errorMessage}
+      updateDraft={draft.updateDraft}
+      saveOutlineField={draft.saveOutlineField}
+      commitProse={draft.commitProse}
+    />
+  );
+}
+
+/** Calls through to the installed bridge so a spy the test grabbed is the one used. */
+async function saveOutlineThroughBridge(id: string, patch: Partial<Chapter>) {
+  const bridge = (
+    window as {
+      storyboard?: { chapters: { saveOutline: (input: unknown) => Promise<unknown> } };
+    }
+  ).storyboard;
+  await bridge?.chapters.saveOutline({ id, ...patch });
 }
 
 beforeEach(() => {
@@ -349,17 +389,14 @@ describe('a renamed chapter does not leave the outline showing the old name', ()
   it('refreshes the outline after a title is written', async () => {
     const stub = installBridge();
     let reloadCount = 0;
-    const onSaveOutline = async (id: string, patch: Partial<Chapter>) => {
-      await stub.saveOutline({ id, ...patch });
-      reloadCount += 1;
-    };
-    render(
-      <ChapterEditor
-        chapter={chapterFixture({ title: 'Untitled chapter' })}
-        isLoading={false}
-        onSaveOutline={onSaveOutline}
-      />,
-    );
+    renderEditor({
+      chapter: chapterFixture({ title: 'Untitled chapter' }),
+      isLoading: false,
+      onSaveOutline: async (id, patch) => {
+        await stub.saveOutline({ id, ...patch });
+        reloadCount += 1;
+      },
+    });
 
     const title = screen.getByLabelText('Chapter title');
     setValue(title, 'The Ash Gate Reborn');
@@ -371,16 +408,13 @@ describe('a renamed chapter does not leave the outline showing the old name', ()
 
   it('reports a failed title save instead of claiming the rename worked', async () => {
     installBridge();
-    const onSaveOutline = async () => {
-      throw new Error('Could not save that title.');
-    };
-    render(
-      <ChapterEditor
-        chapter={chapterFixture({ title: 'Untitled chapter' })}
-        isLoading={false}
-        onSaveOutline={onSaveOutline}
-      />,
-    );
+    renderEditor({
+      chapter: chapterFixture({ title: 'Untitled chapter' }),
+      isLoading: false,
+      onSaveOutline: async () => {
+        throw new Error('Could not save that title.');
+      },
+    });
 
     const title = screen.getByLabelText('Chapter title');
     setValue(title, 'The Ash Gate Reborn');

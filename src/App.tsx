@@ -8,7 +8,9 @@ import type { SectionId } from './lib/sections';
 import { AppNav } from './components/app-nav';
 import { EmptyState } from './components/ui/empty-state';
 import { ChapterEditor } from './features/chapters/chapter-editor';
+import { DiscardDraftDialog } from './features/chapters/discard-draft-dialog';
 import { OutlineTree } from './features/chapters/outline-tree';
+import { useChapterDraft } from './features/chapters/use-chapter-draft';
 import { useOutline } from './features/chapters/use-outline';
 import { EntityCreateDialog } from './features/entities/entity-create-dialog';
 import { EntityDetail } from './features/entities/entity-detail';
@@ -44,11 +46,20 @@ export function App() {
   } = useEntities();
 
   const outline = useOutline(ACTIVE_PROJECT_ID);
+  // Called here, above the section switch, rather than inside the editor. The editor
+  // unmounts whenever another section is showing, and a buffer held inside it would go
+  // with it, so looking at another section would silently drop unsaved prose.
+  const draft = useChapterDraft(outline.chapter, outline.saveChapterOutline);
+  // Pulled out of the two hook results so the callbacks below depend on the members
+  // rather than on an object that is rebuilt on every render.
+  const { isProseDirty } = draft;
+  const { openChapter, selectChapter, selectedChapterId } = outline;
 
   const [activeSection, setActiveSection] = useState<SectionId>('storybook');
   const [activeType, setActiveType] = useState<EntityType>('character');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [pendingChapterId, setPendingChapterId] = useState<string | null>(null);
 
   const entities = byType.get(activeType) ?? [];
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
@@ -101,6 +112,40 @@ export function App() {
     [remove],
   );
 
+  /**
+   * Selecting a chapter from the outline tree.
+   *
+   * Switching chapters is the one navigation that genuinely destroys the buffer, so it
+   * asks before doing it. Moving between sections does not need a prompt any more: the
+   * buffer lives above the section switch and survives the trip.
+   */
+  const onSelectChapter = useCallback(
+    (chapterId: string) => {
+      if (activeSection === 'export') {
+        // The preview reads the committed chapter itself, so selecting must not pull
+        // the editor's copy of the prose into memory.
+        selectChapter(chapterId);
+        return;
+      }
+      if (isProseDirty && chapterId !== selectedChapterId) {
+        setPendingChapterId(chapterId);
+        return;
+      }
+      void openChapter(chapterId);
+    },
+    [activeSection, isProseDirty, openChapter, selectChapter, selectedChapterId],
+  );
+
+  const onDiscardAndSwitch = useCallback(() => {
+    const target = pendingChapterId;
+    setPendingChapterId(null);
+    if (target !== null) {
+      void openChapter(target);
+    }
+  }, [openChapter, pendingChapterId]);
+
+  const onCancelSwitch = useCallback(() => setPendingChapterId(null), []);
+
   if (!hasBridge) {
     return <NoBridgeNotice />;
   }
@@ -137,15 +182,7 @@ export function App() {
 <OutlineTree
                 outline={outline}
                 selectedChapterId={outline.selectedChapterId}
-                onSelectChapter={(id) => {
-                  if (activeSection === 'export') {
-                    // The preview reads the committed chapter itself, so selecting
-                    // must not pull the editor's copy of the prose into memory.
-                    outline.selectChapter(id);
-                    return;
-                  }
-                  void outline.openChapter(id);
-                }}
+                onSelectChapter={onSelectChapter}
               />
           </nav>
         )}
@@ -188,10 +225,15 @@ export function App() {
 
             {activeSection === 'chapters' && (
               <ChapterEditor
-                key={outline.chapter?.id ?? 'none'}
-                chapter={outline.chapter}
+                draft={draft.draft}
                 isLoading={outline.isChapterLoading}
-                onSaveOutline={outline.saveChapterOutline}
+                isDirty={draft.isProseDirty}
+                savedTitle={draft.savedTitle}
+                isSavingProse={draft.isSavingProse}
+                errorMessage={draft.errorMessage}
+                updateDraft={draft.updateDraft}
+                saveOutlineField={draft.saveOutlineField}
+                commitProse={draft.commitProse}
               />
             )}
 
@@ -239,6 +281,19 @@ export function App() {
           type={activeType}
           onClose={() => setIsCreateOpen(false)}
           onSubmit={onCreate}
+        />
+      )}
+
+      {/*
+        Only offered when a chapter switch is genuinely pending. Rendering it
+        unconditionally would put a modal in the DOM that is not about anything.
+      */}
+      {pendingChapterId !== null && draft.draft !== null && (
+        <DiscardDraftDialog
+          isOpen
+          chapterTitle={draft.draft.title}
+          onCancel={onCancelSwitch}
+          onDiscard={onDiscardAndSwitch}
         />
       )}
 
