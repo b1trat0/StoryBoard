@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CHANNELS, createHandlers } from '../../electron/ipc/handlers.js';
 import type { Logger } from '../../electron/lib/logger.js';
+import type { SaveFilePicker } from '../../electron/interfaces/file-dialog.interface.js';
 import {
   deleteEntityRequestSchema,
   entitySchema,
@@ -329,6 +330,18 @@ describe('delete request schemas', () => {
   });
 });
 
+/**
+ * A picker that writes nothing.
+ *
+ * Constructing handlers wires services but never saves, so this only has to exist.
+ * Declared here rather than inlined at each call because a wrong arity would otherwise
+ * be a type error these tests cannot see, since tests are outside the typecheck
+ * projects.
+ */
+const unusedPicker: SaveFilePicker = {
+  save: async () => ({ status: 'saved', filePath: 'C:\\unused.docx' }),
+};
+
 describe('every channel reaches a handler', () => {
   /**
    * The silent-failure guard.
@@ -340,7 +353,7 @@ describe('every channel reaches a handler', () => {
    * the moment it is written.
    */
   it('registers a handler for every declared channel', () => {
-    const handlers = createHandlers(silentLogger);
+    const handlers = createHandlers(silentLogger, unusedPicker);
     const registered = Object.keys(handlers).sort();
     const declared = Object.values(CHANNELS).sort();
 
@@ -350,13 +363,13 @@ describe('every channel reaches a handler', () => {
   it('registers no handler for a channel that was never declared', () => {
     const declared = new Set<string>(Object.values(CHANNELS));
 
-    for (const name of Object.keys(createHandlers(silentLogger))) {
+    for (const name of Object.keys(createHandlers(silentLogger, unusedPicker))) {
       expect(declared.has(name)).toBe(true);
     }
   });
 
   it('names the missing channels rather than only reporting a length mismatch', () => {
-    const handlers = createHandlers(silentLogger) as Record<string, unknown>;
+    const handlers = createHandlers(silentLogger, unusedPicker) as Record<string, unknown>;
     // Simulate the exact failure: a channel declared and forwarded but never wired.
     delete handlers[CHANNELS.outlineCreateVolume];
 

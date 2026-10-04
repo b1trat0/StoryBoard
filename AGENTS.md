@@ -182,7 +182,14 @@ Re-verified against `royalroad.com/support/knowledgebase/83`.
    re-deriving it — a second implementation of the export rules would eventually disagree with the
    first. Blockers and advisories are visually distinct. Interludes are excluded from the output but
    still listed with the reason.
-2. **`.docx` per volume** for bulk import — headings to chapter titles, no junk formatting.
+2. **`.docx` per volume** — **built.** `planVolumeDocx` (`electron/lib/volume-docx-plan.ts`) is the
+   pure selector, `renderVolumeDocx` (`electron/lib/docx-writer.ts`) is the writer, and
+   `volume-docx-export.tsx` runs the panel above the preview. One `Heading 1` per chapter in outline
+   order, no volume or arc headings, no media, no indentation. Runs are tokenized from the
+   converter's own closed tag set (`docx-runs.ts`), so the `.docx` cannot disagree with the preview.
+   A blocker refuses the write. Interludes, images and author notes are dropped and **counted in the
+   result**, because a `.docx` cannot say what it left out. Cancelling the save dialog is a result,
+   not an error. The per-chapter `.html` path stays the only way to publish illustrations.
 3. **`.html` per chapter** for any chapter with illustrations.
 4. **Markdown + JSON archive** of the project. This is the author's backup; it is what saves the
    manuscript if Postgres is lost.
@@ -216,6 +223,11 @@ renderer is not trusted.
 - Migrations and constraints: integration tests against a throwaway database.
 - Export pipeline: golden-file tests asserting the constraints above. A test that does not check for
   `class` attributes or verify `<br />` usage is incomplete.
+- `.docx` writer: unzip the produced bytes and assert on the XML, never on a mocked writer. A `.docx`
+  that passes because it was handed the right runs proves nothing about what a reader sees.
+- Tests live outside the two `tsconfig` projects, so **typecheck does not cover them.** A wrong
+  constructor arity in a test compiles nowhere and fails only if it is actually called. Check call
+  sites by hand when a signature changes.
 - Every bug fix ships with the test that would have caught it, in the same commit.
 
 Run lint, typecheck and tests before considering any task done.

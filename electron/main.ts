@@ -6,6 +6,7 @@ import { resolveRendererEntryFromHere } from './lib/paths.js';
 import { closeDb, initDb } from './db/client.js';
 import { createHandlers } from './ipc/handlers.js';
 import type { Handlers } from './ipc/handlers.js';
+import { createSaveFilePicker } from './interfaces/file-dialog.interface.js';
 
 /**
  * Electron main process.
@@ -27,7 +28,10 @@ const DEV_SERVER_URL = process.env.STORYBOARD_DEV_SERVER;
 let mainWindow: BrowserWindow | null = null;
 
 function registerIpcHandlers(): Handlers {
-  const handlers = createHandlers(logger);
+  // The window is read lazily through a getter: the handlers are wired before the
+  // window exists, and the export dialog should open in front of it rather than
+  // behind, or nowhere at all.
+  const handlers = createHandlers(logger, createSaveFilePicker(() => mainWindow));
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.
     // Nothing is reachable on this channel that did not pass through handleIpc,

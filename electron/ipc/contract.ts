@@ -294,6 +294,9 @@ export const releaseWarningCodeSchema = z.enum([
   'missing_alt',
   'unknown_dimensions',
   'anchor_out_of_range',
+  'dropped_image',
+  'dropped_author_note',
+  'no_publishable_chapters',
 ]);
 
 export const releaseWarningSchema = z.object({
@@ -633,10 +636,48 @@ export const previewChapterRequestSchema = z.object({
   chapterId: uuidSchema,
 });
 
+/**
+ * Export one volume as a Word document.
+ *
+ * A volume rather than a chapter, because that is the unit Royal Road's bulk import
+ * consumes: it builds one chapter per document heading, so a per-chapter `.docx` would
+ * be a manual process dressed up as an automated one.
+ */
+export const exportVolumeDocxRequestSchema = z.object({
+  volumeId: uuidSchema,
+});
+
+/**
+ * What an export produced.
+ *
+ * Cancelling is a separate outcome rather than an error. Closing a save dialog is a
+ * decision the author made, and reporting it as a failure would train them to think the
+ * export failed when it did exactly what they asked.
+ *
+ * The counts are on the result because a `.docx` is text only and cannot carry
+ * illustrations or author notes. Without these numbers the author would have no way to
+ * know that anything was left out until a reader pointed at the missing image.
+ */
+export const volumeDocxExportResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('cancelled') }),
+  z.object({
+    status: z.literal('written'),
+    filePath: z.string(),
+    volumeTitle: z.string(),
+    chapterCount: z.number().int().nonnegative(),
+    excludedChapterCount: z.number().int().nonnegative(),
+    droppedImageCount: z.number().int().nonnegative(),
+    droppedNoteCount: z.number().int().nonnegative(),
+    warnings: z.array(releaseWarningSchema),
+  }),
+]);
+
 export type ReleaseWarning = z.infer<typeof releaseWarningSchema>;
 export type ReleaseBlock = z.infer<typeof releaseBlockSchema>;
 export type ChapterRelease = z.infer<typeof chapterReleaseSchema>;
 export type PreviewChapterRequest = z.infer<typeof previewChapterRequestSchema>;
+export type ExportVolumeDocxRequest = z.infer<typeof exportVolumeDocxRequestSchema>;
+export type VolumeDocxExportResult = z.infer<typeof volumeDocxExportResultSchema>;
 
 /**
  * The API surface exposed on window.storyboard. Every method returns a promise,
@@ -707,6 +748,7 @@ export interface StoryBoardApi {
    */
   release: {
     previewChapter(input: PreviewChapterRequest): Promise<ChapterRelease>;
+    exportVolumeDocx(input: ExportVolumeDocxRequest): Promise<VolumeDocxExportResult>;
   };
 }
 

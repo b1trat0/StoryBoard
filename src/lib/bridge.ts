@@ -114,6 +114,11 @@ export interface StoryBoardBridge {
    */
   release: {
     previewChapter(input: { chapterId: string }): Promise<ChapterRelease>;
+    /**
+     * Writes one volume to a `.docx` the author chooses a location for, which is the
+     * only form of publishing available: Royal Road has no API.
+     */
+    exportVolumeDocx(input: { volumeId: string }): Promise<VolumeDocxExportResult>;
   };
 }
 
@@ -327,7 +332,10 @@ export type ReleaseWarningCode =
   | 'unuploaded_image'
   | 'missing_alt'
   | 'unknown_dimensions'
-  | 'anchor_out_of_range';
+  | 'anchor_out_of_range'
+  | 'dropped_image'
+  | 'dropped_author_note'
+  | 'no_publishable_chapters';
 
 /** One thing the author needs to know before publishing. */
 export interface ReleaseWarning {
@@ -365,6 +373,26 @@ export interface ChapterRelease {
   exclusionReason: string | null;
   warnings: ReleaseWarning[];
 }
+
+/**
+ * What a volume `.docx` export produced.
+ *
+ * Cancellation is an outcome rather than an error because closing the save dialog is a
+ * decision. The counts on a written file are the only record that illustrations and
+ * author notes were left behind, since the document itself cannot carry them.
+ */
+export type VolumeDocxExportResult =
+  | { status: 'cancelled' }
+  | {
+      status: 'written';
+      filePath: string;
+      volumeTitle: string;
+      chapterCount: number;
+      excludedChapterCount: number;
+      droppedImageCount: number;
+      droppedNoteCount: number;
+      warnings: ReleaseWarning[];
+    };
 
 /**
  * Returns the bridge, or null when the renderer is running outside Electron.

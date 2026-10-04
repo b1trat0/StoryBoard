@@ -88,6 +88,7 @@ export function createBridgeApi(): StoryBoardApi {
     },
     release: {
       previewChapter: (input) => invoke(CHANNELS.releasePreviewChapter, input),
+      exportVolumeDocx: (input) => invoke(CHANNELS.releaseExportVolumeDocx, input),
     },
   };
 }

@@ -19,6 +19,7 @@ import { EntitySidebar } from './features/entities/entity-sidebar';
 import { useEntities } from './features/entities/use-entities';
 import { FormattingReference } from './features/export/formatting-reference';
 import { ReleasePreview } from './features/export/release-preview';
+import { VolumeDocxExport } from './features/export/volume-docx-export';
 
 /**
  * Application shell.
@@ -241,11 +242,23 @@ export function App() {
             {activeSection === 'formatting' && <FormattingReference />}
 
             {activeSection === 'export' && (
-              <ReleasePreview
-                key={outline.selectedChapterId ?? 'none'}
-                chapterId={outline.selectedChapterId}
-                isOutlineLoading={outline.isLoading}
-              />
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/*
+                  The export panel sits above the chapter preview rather than replacing
+                  it. The preview answers "will this chapter publish right" and the
+                  volume export answers "what do I hand to Royal Road"; both are needed
+                  before publishing and neither replaces the other.
+                */}
+                <VolumeDocxExport
+                  volumes={outline.tree.volumes}
+                  isLoading={outline.isLoading}
+                />
+                <ReleasePreview
+                  key={outline.selectedChapterId ?? 'none'}
+                  chapterId={outline.selectedChapterId}
+                  isOutlineLoading={outline.isLoading}
+                />
+              </div>
             )}
 
             {!isBuiltSection(activeSection) && (

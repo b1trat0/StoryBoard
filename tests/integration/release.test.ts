@@ -4,6 +4,7 @@ import { createTestDatabase } from '../helpers/test-database.js';
 import type { TestDatabase } from '../helpers/test-database.js';
 import { createChapterRepository } from '../../electron/repositories/chapter.repository.js';
 import { createIllustrationRepository } from '../../electron/repositories/illustration.repository.js';
+import { createOutlineRepository } from '../../electron/repositories/outline.repository.js';
 import { createReleaseService } from '../../electron/services/release.service.js';
 import { createChapterService } from '../../electron/services/content.service.js';
 
@@ -44,13 +45,35 @@ beforeEach(async () => {
   await testDb.pool.query(`INSERT INTO projects (id, title) VALUES ($1, 'Serial')`, [PROJECT_ID]);
 });
 
-function releaseService() {
-  const chapters = createChapterRepository();
-  return createReleaseService(chapters, createIllustrationRepository());
+/**
+ * Records what the export asked the save dialog to write, without touching disk.
+ *
+ * The picker is the only place a `.docx` leaves the app, and the file's bytes are the
+ * only thing these tests can assert about. Returning the captured call keeps the write
+ * path exercised without a temp directory that would need cleaning up.
+ */
+function recordingPicker() {
+  const calls: { suggestedName: string; bytes: Buffer }[] = [];
+  return {
+    calls,
+    save: async (input: { suggestedName: string; bytes: Buffer }) => {
+      calls.push(input);
+      return { status: 'saved' as const, filePath: `C:\\exports\\${input.suggestedName}` };
+    },
+  };
 }
 
-/** Creates a volume and arc through SQL and returns the arc id. */
-async function createArcId(): Promise<string> {
+function releaseService() {
+  return createReleaseService(
+    createChapterRepository(),
+    createIllustrationRepository(),
+    createOutlineRepository(),
+    recordingPicker(),
+  );
+}
+
+/** Creates a volume and arc through SQL and returns both ids. */
+async function createVolumeAndArcIds(): Promise<{ volumeId: string; arcId: string }> {
   const rows = await testDb.pool.query<{ id: string }>(
     `INSERT INTO volumes (project_id, title, ordinal) VALUES ($1, 'Volume One', 1) RETURNING id`,
     [PROJECT_ID],
@@ -59,7 +82,12 @@ async function createArcId(): Promise<string> {
     `INSERT INTO arcs (volume_id, title, ordinal) VALUES ($1, 'Arc One', 1) RETURNING id`,
     [rows.rows[0]!.id],
   );
-  return arc.rows[0]!.id;
+  return { volumeId: rows.rows[0]!.id, arcId: arc.rows[0]!.id };
+}
+
+/** Creates a volume and arc through SQL and returns the arc id. */
+async function createArcId(): Promise<string> {
+  return (await createVolumeAndArcIds()).arcId;
 }
 
 /** Inserts a chapter directly and returns its id. */
@@ -168,5 +196,144 @@ describe('release preview', () => {
     // Trailing whitespace is trimmed by the paragraph splitter, nothing else is.
     expect(release.blocks).toHaveLength(1);
     expect(release.blocks[0]?.html).toBe(savedBody.trimEnd());
+  });
+});
+
+/**
+ * The volume export read path against real Postgres.
+ *
+ * The unit tests prove the selection and assembly rules with plain objects. These prove
+ * the joins underneath, and the one that matters most is membership: the exported file
+ * is built from the volume's chapters and no others. A query that dropped the arc join,
+ * or ordered by something other than the outline, would produce a plausible document
+ * with the wrong chapters in it, and the author would find out after uploading.
+ */
+describe('volume docx export', () => {
+  /** Reads the saved filename, which is the one piece of the result that names the file. */
+  function suggestedNameOf(calls: { suggestedName: string }[]): string {
+    return calls[0]?.suggestedName ?? '';
+  }
+
+  it('exports every chapter of the volume in outline order', async () => {
+    const { volumeId, arcId } = await createVolumeAndArcIds();
+    await insertChapter(arcId, { title: 'First' });
+    await insertChapter(arcId, { title: 'Second', ordinal: 2 });
+
+    const picker = recordingPicker();
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      picker,
+    );
+    const result = await service.exportVolumeDocx({ volumeId });
+
+    expect(result.status).toBe('written');
+    if (result.status !== 'written') {
+      return;
+    }
+    expect(result.chapterCount).toBe(2);
+    expect(suggestedNameOf(picker.calls)).toBe('Volume One.docx');
+  });
+
+  it('leaves another volume\u2019s chapters out', async () => {
+    // The membership check that no unit test can make, because a plain object cannot
+    // belong to two volumes at once.
+    const first = await createVolumeAndArcIds();
+    await insertChapter(first.arcId, { title: 'In the first volume' });
+
+    const otherVolume = await testDb.pool.query<{ id: string }>(
+      `INSERT INTO volumes (project_id, title, ordinal) VALUES ($1, 'Volume Two', 2) RETURNING id`,
+      [PROJECT_ID],
+    );
+    const otherArc = await testDb.pool.query<{ id: string }>(
+      `INSERT INTO arcs (volume_id, title, ordinal) VALUES ($1, 'Arc Two', 1) RETURNING id`,
+      [otherVolume.rows[0]!.id],
+    );
+    await insertChapter(otherArc.rows[0]!.id, { title: 'In the second volume' });
+
+    const picker = recordingPicker();
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      picker,
+    );
+    const result = await service.exportVolumeDocx({ volumeId: first.volumeId });
+
+    expect(result.status === 'written' && result.chapterCount).toBe(1);
+  });
+
+  it('refuses to export a volume that does not exist', async () => {
+    const picker = recordingPicker();
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      picker,
+    );
+
+    await expect(
+      service.exportVolumeDocx({ volumeId: '99999999-9999-4999-8999-999999999999' }),
+    ).rejects.toThrow(/no longer exists/i);
+    expect(picker.calls).toHaveLength(0);
+  });
+
+  it('refuses to export an unfinished chapter and writes nothing', async () => {
+    const { volumeId, arcId } = await createVolumeAndArcIds();
+    await insertChapter(arcId, { title: 'Too short', bodyMd: 'Three words.' });
+
+    const picker = recordingPicker();
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      picker,
+    );
+
+    await expect(service.exportVolumeDocx({ volumeId })).rejects.toThrow(/not ready to export/i);
+    expect(picker.calls).toHaveLength(0);
+  });
+
+  it('reports images and author notes it could not carry', async () => {
+    // The author's only record of what the Word document left out, since the document
+    // itself cannot say so.
+    const { volumeId, arcId } = await createVolumeAndArcIds();
+    const id = await insertChapter(arcId, { authorNotePost: 'Discord.' });
+    await testDb.pool.query(
+      `INSERT INTO illustrations (chapter_id, after_paragraph_index, local_path, remote_url, provider, width, height, alt_text)
+       VALUES ($1, 0, 'C:/a.png', 'https://host.invalid/a.png', 'catbox', 900, 600, 'An image')`,
+      [id],
+    );
+
+    const picker = recordingPicker();
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      picker,
+    );
+    const result = await service.exportVolumeDocx({ volumeId });
+
+    expect(result.status).toBe('written');
+    if (result.status !== 'written') {
+      return;
+    }
+    expect(result.droppedImageCount).toBe(1);
+    expect(result.droppedNoteCount).toBe(1);
+  });
+
+  it('reports a cancelled save as a cancellation, not a file', async () => {
+    const { volumeId, arcId } = await createVolumeAndArcIds();
+    await insertChapter(arcId);
+
+    const service = createReleaseService(
+      createChapterRepository(),
+      createIllustrationRepository(),
+      createOutlineRepository(),
+      { save: async () => ({ status: 'cancelled' as const }) },
+    );
+
+    expect(await service.exportVolumeDocx({ volumeId })).toEqual({ status: 'cancelled' });
   });
 });

@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { chapters } from '../db/schema.js';
 import { toChapterDto } from '../db/mappers.js';
@@ -27,6 +27,7 @@ export class ChapterNotFoundError extends Error {
 export interface ChapterRepository {
   listByArc(arcId: string): Promise<Chapter[]>;
   findById(id: string): Promise<Chapter | null>;
+  findByIds(ids: readonly string[]): Promise<Chapter[]>;
   nextOrdinal(arcId: string): Promise<number>;
   create(input: CreateChapterInput): Promise<Chapter>;
   remove(id: string): Promise<void>;
@@ -51,6 +52,30 @@ export function createChapterRepository(): ChapterRepository {
       const rows = await db.select().from(chapters).where(eq(chapters.id, id)).limit(1);
       const row = rows[0];
       return row === undefined ? null : toChapterDto(row);
+    },
+
+    /**
+     * Loads many chapters at once, for exporting a whole volume.
+     *
+     * A volume export needs every chapter in the volume, and reading them one at a
+     * time turns a single export into one round trip per chapter. Order is not
+     * meaningful here: the caller already knows the reading order from the outline and
+     * assembles the document itself.
+     *
+     * @param ids - Chapter ids to load.
+     * @returns The chapters that exist, which is fewer than `ids` if any were deleted
+     *   between reading the outline and loading the text.
+     */
+    async findByIds(ids) {
+      if (ids.length === 0) {
+        return [];
+      }
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(chapters)
+        .where(inArray(chapters.id, [...ids]));
+      return rows.map(toChapterDto);
     },
 
     /**

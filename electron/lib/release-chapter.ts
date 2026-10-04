@@ -39,7 +39,10 @@ export type ReleaseWarningCode =
   | 'unuploaded_image'
   | 'missing_alt'
   | 'unknown_dimensions'
-  | 'anchor_out_of_range';
+  | 'anchor_out_of_range'
+  | 'dropped_image'
+  | 'dropped_author_note'
+  | 'no_publishable_chapters';
 
 /** One thing the author needs to know before publishing. */
 export interface ReleaseWarning {
@@ -331,8 +334,12 @@ export function buildChapterRelease(
  * Keyed on code and message together because the same message under two different
  * codes is genuinely two problems: a chapter can be too short and still an outline,
  * and telling the author only one of those would leave the other unfixed.
+ *
+ * Exported because the `.docx` planner aggregates per-chapter warnings from this
+ * module and has to deduplicate the combined list the same way, rather than
+ * deciding for itself what counts as a repeat.
  */
-function dedupeWarnings(warnings: readonly ReleaseWarning[]): ReleaseWarning[] {
+export function dedupeWarnings(warnings: readonly ReleaseWarning[]): ReleaseWarning[] {
   const seen = new Set<string>();
   const unique: ReleaseWarning[] = [];
   for (const warning of warnings) {

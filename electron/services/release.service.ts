@@ -1,17 +1,27 @@
 import { buildChapterRelease } from '../lib/release-chapter.js';
-import type { ChapterRelease } from '../lib/release-chapter.js';
+import type { ChapterRelease, ReleaseWarning } from '../lib/release-chapter.js';
+import { planVolumeDocx } from '../lib/volume-docx-plan.js';
+import type { VolumeDocxPlan } from '../lib/volume-docx-plan.js';
+import { renderVolumeDocx } from '../lib/docx-writer.js';
+import { toExportFileName } from '../lib/export-filename.js';
 import type { ChapterRepository } from '../repositories/chapter.repository.js';
 import type { IllustrationRepository } from '../repositories/illustration.repository.js';
+import type { OutlineRepository } from '../repositories/outline.repository.js';
+import type { SaveFilePicker } from '../interfaces/file-dialog.interface.js';
 import { RuleViolationError } from './storyboard.service.js';
 
 /**
- * Release preview.
+ * The export pipeline's only step that writes anything.
  *
- * The first step of the export pipeline and the only one that writes nothing.
- * Every file the pipeline eventually produces comes from what this returns, so a
- * problem caught here is caught before the author uploads anything by hand to
- * Royal Road — which, per AGENTS.md, is the one step that cannot be undone or
- * scripted.
+ * The preview reads committed data and judges it. This reads the same committed data,
+ * refuses the file outright when something would make it wrong, and then hands it to
+ * the author through a save dialog. Royal Road has no API, so this file is the end of
+ * the pipeline: the author uploads it by hand, and nothing after this point can check
+ * what they do with it.
+ *
+ * Every read here is a read of what is stored. An unsaved editor buffer is never
+ * exported, because the author would be reviewing one version in the preview and
+ * uploading another.
  */
 
 /** Preview of one chapter's publishable form. */
@@ -24,23 +34,51 @@ export interface ReleaseService {
    *   found. Throws when the chapter does not exist.
    */
   previewChapter(input: { chapterId: string }): Promise<ChapterRelease>;
+
+  /**
+   * Writes one volume as a Word document for Royal Road's bulk import.
+   *
+   * @param input - `volumeId` of the volume to export.
+   * @returns Where the file went and what it left out, or `cancelled` when the author
+   *   closed the save dialog.
+   * @throws When the volume does not exist, or when a blocker would make the file
+   *   wrong. Nothing is written in either case.
+   */
+  exportVolumeDocx(input: { volumeId: string }): Promise<VolumeDocxExportResult>;
 }
+
+/** What an export produced, or that the author declined to produce one. */
+export type VolumeDocxExportResult =
+  | { status: 'cancelled' }
+  | {
+      status: 'written';
+      filePath: string;
+      volumeTitle: string;
+      chapterCount: number;
+      excludedChapterCount: number;
+      droppedImageCount: number;
+      droppedNoteCount: number;
+      warnings: ReleaseWarning[];
+    };
 
 /**
  * Builds the release service.
  *
- * Takes the two repositories rather than the higher level services, because the
- * preview must read a chapter and its image slots as they are stored, not as any
- * single editing surface happens to have loaded them. It is a read of committed
- * data, not a view of someone's unsaved buffer.
+ * Takes repositories rather than the higher level services, because both the preview
+ * and the export must read what is stored rather than what any single editing surface
+ * happens to have loaded.
  *
- * @param chapters - Chapter data access.
+ * @param chapters - Chapter data access, shared with the editing surfaces.
  * @param illustrations - Illustration slot data access.
+ * @param outline - Outline data access, for a volume's chapters in reading order.
+ * @param saveFile - Where the exported document is written.
  * @returns The release service.
  */
 export function createReleaseService(
   chapters: ChapterRepository,
   illustrations: IllustrationRepository,
+  outline: OutlineRepository,
+  saveFile: SaveFilePicker,
 ): ReleaseService {
   return {
     async previewChapter(input) {
@@ -51,5 +89,99 @@ export function createReleaseService(
       const slots = await illustrations.listByChapter(chapter.id);
       return buildChapterRelease(chapter, slots);
     },
+
+    async exportVolumeDocx(input) {
+      const plan = await buildVolumePlan(input.volumeId, outline, chapters, illustrations);
+
+      if (plan.blockers.length > 0) {
+        throw new RuleViolationError(describeBlockers(plan));
+      }
+
+      const bytes = await renderVolumeDocx(plan);
+      const saved = await saveFile.save({
+        suggestedName: toExportFileName(plan.volumeTitle),
+        bytes,
+      });
+
+      if (saved.status === 'cancelled') {
+        return { status: 'cancelled' };
+      }
+
+      return {
+        status: 'written',
+        filePath: saved.filePath,
+        volumeTitle: plan.volumeTitle,
+        chapterCount: plan.chapters.length,
+        excludedChapterCount: plan.excluded.length,
+        droppedImageCount: plan.droppedImageCount,
+        droppedNoteCount: plan.droppedNoteCount,
+        warnings: plan.warnings,
+      };
+    },
   };
+}
+
+/**
+ * Reads one volume and decides what its document should contain.
+ *
+ * The outline is read first because it is the only place that knows which chapters
+ * belong to this volume and in what order. Chapter text is then fetched in one query
+ * against that list rather than chapter by chapter, which would make a single export
+ * one round trip per chapter.
+ *
+ * @param volumeId - The volume to export.
+ * @param outline - Outline data access.
+ * @param chapters - Chapter data access.
+ * @param illustrations - Illustration slot data access.
+ * @returns The plan, including every blocker that would make the file wrong.
+ * @throws When the volume no longer exists.
+ */
+async function buildVolumePlan(
+  volumeId: string,
+  outline: OutlineRepository,
+  chapters: ChapterRepository,
+  illustrations: IllustrationRepository,
+): Promise<VolumeDocxPlan> {
+  const volume = await outline.findVolumeById(volumeId);
+  if (volume === null) {
+    throw new RuleViolationError(
+      'That volume no longer exists, so there is nothing to export.',
+    );
+  }
+
+  // The tree is read by project id, which the volume row carries.
+  const tree = await outline.listTree(volume.projectId);
+  const node = tree.volumes.find((entry) => entry.id === volume.id);
+  if (node === undefined) {
+    throw new RuleViolationError(
+      'That volume no longer exists, so there is nothing to export.',
+    );
+  }
+
+  const ids = node.arcs.flatMap((arc) => arc.chapters.map((chapter) => chapter.id));
+  const bodies = await chapters.findByIds(ids);
+  const slots = await Promise.all(ids.map((id) => illustrations.listByChapter(id)));
+
+  return planVolumeDocx(
+    { volumes: [{ id: node.id, title: node.title, arcs: node.arcs }], chapters: bodies },
+    slots.flat(),
+  );
+}
+
+/**
+ * Explains every blocker at once.
+ *
+ * One blocker per attempt would send the author round the loop once per chapter, and a
+ * volume of outline stubs would take twenty exports to discover what one screen could
+ * have said.
+ *
+ * @param plan - The plan that was refused.
+ * @returns A message naming each blocker.
+ */
+function describeBlockers(plan: VolumeDocxPlan): string {
+  const lines = plan.blockers.map((warning) => `- ${warning.message}`);
+  return (
+    `${plan.volumeTitle} is not ready to export yet:\n\n${lines.join('\n')}\n\n` +
+    'Nothing was written. Fix these and try again.'
+  );
 }

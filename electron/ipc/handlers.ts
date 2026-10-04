@@ -5,6 +5,7 @@ import { handleIpc } from '../controllers/ipc-handler.js';
 import type { IpcResult } from '../controllers/ipc-handler.js';
 import type { Logger } from '../lib/logger.js';
 import { createCatboxHost } from '../interfaces/catbox.interface.js';
+import type { SaveFilePicker } from '../interfaces/file-dialog.interface.js';
 import { createChapterRepository } from '../repositories/chapter.repository.js';
 import { createOutlineRepository } from '../repositories/outline.repository.js';
 import { createEntityRepository } from '../repositories/entity.repository.js';
@@ -38,6 +39,7 @@ import {
   createVolumeRequestSchema,
   chapterSchema,
   deleteByIdRequestSchema,
+  exportVolumeDocxRequestSchema,
   deleteEntityRequestSchema,
   deleteFactRequestSchema,
   deleteRelationRequestSchema,
@@ -67,6 +69,7 @@ import {
   updateFactStatusRequestSchema,
   updateVolumeRequestSchema,
   uploadIllustrationRequestSchema,
+  volumeDocxExportResultSchema,
   volumeSchema,
 } from './contract.js';
 
@@ -92,7 +95,7 @@ const chapterListSchema = z.array(chapterSchema);
 const glossaryListSchema = z.array(glossaryTermSchema);
 const illustrationListSchema = z.array(illustrationSchema);
 
-export function createHandlers(logger: Logger) {
+export function createHandlers(logger: Logger, saveFile: SaveFilePicker) {
   const entityService = createEntityService(createEntityRepository());
   const relationService = createRelationService(createRelationRepository());
   const factService = createFactService(createFactRepository());
@@ -101,19 +104,24 @@ export function createHandlers(logger: Logger) {
   // its chapter's real paragraph count, so the two must read the same data.
   const chapterRepository = createChapterRepository();
   const chapterService = createChapterService(chapterRepository);
+  const illustrationRepository = createIllustrationRepository();
   const illustrationService = createIllustrationService(
-    createIllustrationRepository(),
+    illustrationRepository,
     chapterRepository,
     createCatboxHost(),
   );
   const glossaryService = createGlossaryService(createGlossaryRepository());
-  const outlineService = createOutlineService(createOutlineRepository());
-  // The release preview reads committed chapter and illustration data, so it takes
-  // the same shared chapter repository rather than a second one that could see a
-  // different state.
+  const outlineRepository = createOutlineRepository();
+  const outlineService = createOutlineService(outlineRepository);
+  // The release pipeline reads committed chapter and illustration data, so it takes
+  // the same shared repositories rather than second ones that could see a different
+  // state. The outline is needed as well: a volume export needs to know which
+  // chapters belong to the volume and in what order.
   const releaseService = createReleaseService(
     chapterRepository,
-    createIllustrationRepository(),
+    illustrationRepository,
+    outlineRepository,
+    saveFile,
   );
 
   return {
@@ -397,6 +405,14 @@ export function createHandlers(logger: Logger) {
       previewChapterRequestSchema,
       chapterReleaseSchema,
       (input) => releaseService.previewChapter(input),
+    ),
+
+    [CHANNELS.releaseExportVolumeDocx]: handleIpc(
+      logger,
+      CHANNELS.releaseExportVolumeDocx,
+      exportVolumeDocxRequestSchema,
+      volumeDocxExportResultSchema,
+      (input) => releaseService.exportVolumeDocx(input),
     ),
   } satisfies Record<ChannelName, (raw: unknown) => Promise<IpcResult<unknown>>>;
 }
