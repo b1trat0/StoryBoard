@@ -5,7 +5,7 @@ import { toChapterDto } from '../db/mappers.js';
 import type {
   Chapter,
   CreateChapterInput,
-  SaveChapterBodyRequest,
+  SaveChapterProseRequest,
   SaveChapterOutlineRequest,
 } from '../ipc/contract.js';
 
@@ -30,7 +30,7 @@ export interface ChapterRepository {
   nextOrdinal(arcId: string): Promise<number>;
   create(input: CreateChapterInput): Promise<Chapter>;
   remove(id: string): Promise<void>;
-  saveBody(input: SaveChapterBodyRequest, wordCount: number): Promise<Chapter>;
+  saveProse(input: SaveChapterProseRequest, wordCount: number): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
 }
 
@@ -105,11 +105,17 @@ export function createChapterRepository(): ChapterRepository {
       }
     },
 
-    async saveBody(input, wordCount) {
+    async saveProse(input, wordCount) {
       const db = getDb();
       const rows = await db
         .update(chapters)
-        .set({ bodyMd: input.bodyMd, wordCount, updatedAt: new Date() })
+        .set({
+          bodyMd: input.bodyMd,
+          authorNotePre: input.authorNotePre,
+          authorNotePost: input.authorNotePost,
+          wordCount,
+          updatedAt: new Date(),
+        })
         .where(eq(chapters.id, input.id))
         .returning();
 

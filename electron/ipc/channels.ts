@@ -36,7 +36,7 @@ export const CHANNELS = {
   chaptersGet: 'chapters:get',
   chaptersCreate: 'chapters:create',
   chaptersRemove: 'chapters:remove',
-  chaptersSaveBody: 'chapters:saveBody',
+  chaptersSaveProse: 'chapters:saveProse',
   chaptersSaveOutline: 'chapters:saveOutline',
   glossaryList: 'glossary:list',
   glossarySave: 'glossary:save',

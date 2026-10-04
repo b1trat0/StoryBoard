@@ -152,6 +152,12 @@ about the twin" without scanning prose.
 - `chapters.pov_entity_id` — third-person limited, one POV per chapter, switches only at
   breaks. Enables the two cheap mechanical checks.
 - `chapters.body_md` — the prose. Markdown, blank-line-separated paragraphs.
+- `chapters.author_note_pre`, `chapters.author_note_post` - Royal Road author notes, the
+  housekeeping the author writes for readers rather than for the story. Both `NOT NULL`
+  and saved by the same explicit action as the body, so a note cannot be silently
+  discarded by a body-only save. They are **excluded from `word_count`**, because Royal Road
+  derives its page wordcount from chapter content only and a long note would otherwise
+  push the author past the 2,000 word target for no reason.
 - `chapters.rr_url`, `published_at` — publication tracking.
 
 `facts` — **the single source of truth behind all three tabs.** The UI tabs are filtered

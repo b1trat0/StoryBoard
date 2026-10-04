@@ -161,6 +161,8 @@ export function toChapterDto(row: ChapterRow): Chapter {
     outlineOutcome: row.outlineOutcome,
     outlineBeat: row.outlineBeat,
     bodyMd: row.bodyMd,
+    authorNotePre: row.authorNotePre,
+    authorNotePost: row.authorNotePost,
     wordCount: row.wordCount,
     rrUrl: row.rrUrl,
     publishedAt: toIso(row.publishedAt),

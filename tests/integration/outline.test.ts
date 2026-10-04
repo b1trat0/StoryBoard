@@ -67,6 +67,26 @@ function chapterService() {
 }
 
 /** Builds volume -> arc -> chapter, returning their ids in order. */
+/**
+ * Builds a prose-save payload.
+ *
+ * The contract requires both author notes on every prose save rather than defaulting
+ * them, so a test that omits one would be relying on a silent wipe. Stating them
+ * explicitly here keeps that guarantee visible at every call site.
+ */
+function prose(
+  id: string,
+  bodyMd: string,
+  notes: { pre?: string; post?: string } = {},
+): { id: string; bodyMd: string; authorNotePre: string; authorNotePost: string } {
+  return {
+    id,
+    bodyMd,
+    authorNotePre: notes.pre ?? '',
+    authorNotePost: notes.post ?? '',
+  };
+}
+
 async function spine(titles: readonly string[] = ['Chapter One']) {
   const outline = outlineService();
   const volume = await outline.createVolume({ projectId: PROJECT_ID, title: 'Volume One' });
@@ -149,7 +169,7 @@ describe('outline tree', () => {
 
   it('omits the prose body from the tree, because the tree is a navigation aid', async () => {
     const { chapters } = await spine();
-    await chapterService().saveBody({ id: chapters[0]!.id, bodyMd: 'A long paragraph.' });
+    await chapterService().saveProse(prose(chapters[0]!.id, 'A long paragraph.'));
 
     const tree = await outlineService().list({ projectId: PROJECT_ID });
 
@@ -158,7 +178,7 @@ describe('outline tree', () => {
 
   it('counts words on the tree so a chapter list can show length', async () => {
     const { chapters } = await spine();
-    await chapterService().saveBody({ id: chapters[0]!.id, bodyMd: 'one two three four five' });
+    await chapterService().saveProse(prose(chapters[0]!.id, 'one two three four five'));
 
     const tree = await outlineService().list({ projectId: PROJECT_ID });
 
@@ -345,7 +365,7 @@ describe('deletion impact', () => {
 
   it('counts the words that would be destroyed, so the author sees the prose at risk', async () => {
     const { chapters } = await spine();
-    await chapterService().saveBody({ id: chapters[0]!.id, bodyMd: 'one two three four five six' });
+    await chapterService().saveProse(prose(chapters[0]!.id, 'one two three four five six'));
 
     const impact = await outlineService().describeDeletion({
       kind: 'chapter',
@@ -364,7 +384,7 @@ describe('deletion impact', () => {
     await chapters.create({ arcId: arcOne.id, title: 'A' });
     await chapters.create({ arcId: arcTwo.id, title: 'B' });
     const [chapterA] = await chapters.listByArc({ arcId: arcOne.id });
-    await chapters.saveBody({ id: chapterA!.id, bodyMd: 'one two three' });
+    await chapters.saveProse(prose(chapterA!.id, 'one two three'));
     await insertFact(chapterA!.id, 'Something.');
 
     const impact = await outline.describeDeletion({ kind: 'volume', id: volume.id });
@@ -463,7 +483,7 @@ describe('chapter prose', () => {
     const { chapters } = await spine();
     const body = 'First paragraph.\n\nSecond *paragraph* with `code`.\n\n- a list item';
 
-    const saved = await chapterService().saveBody({ id: chapters[0]!.id, bodyMd: body });
+    const saved = await chapterService().saveProse(prose(chapters[0]!.id, body));
 
     expect(saved.bodyMd).toBe(body);
   });
@@ -471,19 +491,68 @@ describe('chapter prose', () => {
   it('recomputes the word count on every body save', async () => {
     const { chapters } = await spine();
     const chaptersApi = chapterService();
-    await chaptersApi.saveBody({ id: chapters[0]!.id, bodyMd: 'one two three' });
+    await chaptersApi.saveProse(prose(chapters[0]!.id, 'one two three'));
 
-    const grown = await chaptersApi.saveBody({ id: chapters[0]!.id, bodyMd: 'one two three four' });
+    const grown = await chaptersApi.saveProse(prose(chapters[0]!.id, 'one two three four'));
 
     expect(grown.wordCount).toBe(4);
+  });
+
+  it('stores both author notes and reads them back', async () => {
+    const { chapters } = await spine();
+    const chaptersApi = chapterService();
+
+    const saved = await chaptersApi.saveProse(
+      prose(chapters[0]!.id, 'The body.', {
+        pre: 'Start at book one.',
+        post: 'Discord: https://example.invalid',
+      }),
+    );
+
+    expect(saved.authorNotePre).toBe('Start at book one.');
+    expect(saved.authorNotePost).toBe('Discord: https://example.invalid');
+
+    // Round-tripped through the database, not just echoed back from the write.
+    const reread = await chaptersApi.listByArc({ arcId: chapters[0]!.arcId });
+    expect(reread[0]?.authorNotePre).toBe('Start at book one.');
+    expect(reread[0]?.authorNotePost).toBe('Discord: https://example.invalid');
+  });
+
+  it('leaves the word count out of the author notes', async () => {
+    const { chapters } = await spine();
+    const chaptersApi = chapterService();
+
+    // Royal Road derives its page wordcount from chapter content only, so a long
+    // author note must not inflate the number the author sees against the 2,000
+    // word target.
+    const saved = await chaptersApi.saveProse(
+      prose(chapters[0]!.id, 'one two three', {
+        pre: 'a '.repeat(50),
+        post: 'b '.repeat(50),
+      }),
+    );
+
+    expect(saved.wordCount).toBe(3);
+  });
+
+  it('clears a note when the author empties it', async () => {
+    const { chapters } = await spine();
+    const chaptersApi = chapterService();
+    const id = chapters[0]!.id;
+    await chaptersApi.saveProse(prose(id, 'Body.', { pre: 'Note.', post: 'Also this.' }));
+
+    const cleared = await chaptersApi.saveProse(prose(id, 'Body.'));
+
+    expect(cleared.authorNotePre).toBe('');
+    expect(cleared.authorNotePost).toBe('');
   });
 
   it('counts zero words for an empty body rather than leaving the old count', async () => {
     const { chapters } = await spine();
     const chaptersApi = chapterService();
-    await chaptersApi.saveBody({ id: chapters[0]!.id, bodyMd: 'one two three' });
+    await chaptersApi.saveProse(prose(chapters[0]!.id, 'one two three'));
 
-    const emptied = await chaptersApi.saveBody({ id: chapters[0]!.id, bodyMd: '' });
+    const emptied = await chaptersApi.saveProse(prose(chapters[0]!.id, ''));
 
     expect(emptied.wordCount).toBe(0);
   });
@@ -491,7 +560,7 @@ describe('chapter prose', () => {
   it('leaves the prose alone when only the outline changes', async () => {
     const { chapters } = await spine();
     const chaptersApi = chapterService();
-    await chaptersApi.saveBody({ id: chapters[0]!.id, bodyMd: 'keep this sentence' });
+    await chaptersApi.saveProse(prose(chapters[0]!.id, 'keep this sentence'));
 
     const updated = await chaptersApi.saveOutline({ id: chapters[0]!.id, status: 'done' });
 
@@ -501,10 +570,7 @@ describe('chapter prose', () => {
 
   it('refuses a prose save for a chapter that no longer exists', async () => {
     await expect(
-      chapterService().saveBody({
-        id: '99999999-9999-4999-8999-999999999999',
-        bodyMd: 'orphan',
-      }),
+      chapterService().saveProse(prose('99999999-9999-4999-8999-999999999999', 'orphan')),
     ).rejects.toThrow(/no longer exists/i);
   });
 
@@ -517,7 +583,7 @@ describe('chapter prose', () => {
       [chapterId],
     );
 
-    await chapterService().saveBody({ id: chapterId, bodyMd: 'revised after publication' });
+    await chapterService().saveProse(prose(chapterId, 'revised after publication'));
     const tree = await outlineService().list({ projectId: PROJECT_ID });
     const node = tree.volumes[0]?.arcs[0]?.chapters[0];
 

@@ -72,6 +72,8 @@ function chapterFixture(overrides: Partial<Chapter> = {}): Chapter {
     outlineOutcome: '',
     outlineBeat: '',
     bodyMd: '',
+    authorNotePre: '',
+    authorNotePost: '',
     wordCount: 0,
     rrUrl: null,
     publishedAt: null,

@@ -33,6 +33,8 @@ function chapterFixture(overrides: Partial<Chapter> = {}): Chapter {
     outlineOutcome: '',
     outlineBeat: '',
     bodyMd: '',
+    authorNotePre: '',
+    authorNotePost: '',
     wordCount: 0,
     rrUrl: null,
     publishedAt: null,
@@ -43,20 +45,33 @@ function chapterFixture(overrides: Partial<Chapter> = {}): Chapter {
 }
 
 interface BridgeStub {
-  saveBody: ReturnType<typeof vi.fn>;
+  saveProse: ReturnType<typeof vi.fn>;
   saveOutline: ReturnType<typeof vi.fn>;
 }
 
 /** Installs a minimal window.storyboard. getBridge reads it off the window object. */
 function installBridge(): BridgeStub {
-  const saveBody = vi.fn(async (input: { id: string; bodyMd: string }) =>
-    chapterFixture({ bodyMd: input.bodyMd, wordCount: input.bodyMd.split(/\s+/).filter(Boolean).length }),
+  // Mirrors the real service: word_count comes from the body only. Royal Road's page
+  // wordcount is computed from chapter content, so counting the author notes here
+  // would over-report every chapter that has them.
+  const saveProse = vi.fn(async (input: {
+    id: string;
+    bodyMd: string;
+    authorNotePre: string;
+    authorNotePost: string;
+  }) =>
+    chapterFixture({
+      bodyMd: input.bodyMd,
+      authorNotePre: input.authorNotePre,
+      authorNotePost: input.authorNotePost,
+      wordCount: input.bodyMd.split(/\s+/).filter(Boolean).length,
+    }),
   );
   const saveOutline = vi.fn(async (input: { id: string }) => chapterFixture({ ...input, id: CHAPTER_ID }));
   (window as { storyboard?: unknown }).storyboard = {
-    chapters: { saveBody, saveOutline },
+    chapters: { saveProse, saveOutline },
   };
-  return { saveBody, saveOutline };
+  return { saveProse, saveOutline };
 }
 
 function setValue(element: HTMLElement, value: string) {
@@ -123,7 +138,7 @@ describe('prose is never written while it is being typed', () => {
 
     setValue(screen.getByLabelText('Chapter prose'), 'The first sentence of a chapter.');
 
-    expect(stub.saveBody).not.toHaveBeenCalled();
+    expect(stub.saveProse).not.toHaveBeenCalled();
   });
 
   it('writes the prose only when Save is pressed', async () => {
@@ -133,10 +148,12 @@ describe('prose is never written while it is being typed', () => {
     setValue(screen.getByLabelText('Chapter prose'), 'The first sentence.');
     (screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement).click();
 
-    await waitFor(() => expect(stub.saveBody).toHaveBeenCalledTimes(1));
-    expect(stub.saveBody).toHaveBeenCalledWith({
+    await waitFor(() => expect(stub.saveProse).toHaveBeenCalledTimes(1));
+    expect(stub.saveProse).toHaveBeenCalledWith({
       id: CHAPTER_ID,
       bodyMd: 'The first sentence.',
+      authorNotePre: '',
+      authorNotePost: '',
     });
   });
 
@@ -170,7 +187,7 @@ describe('prose is never written while it is being typed', () => {
 
   it('keeps unsaved prose on screen when the save fails, so nothing is lost', async () => {
     const stub = installBridge();
-    stub.saveBody.mockRejectedValueOnce(new Error('the database is away'));
+    stub.saveProse.mockRejectedValueOnce(new Error('the database is away'));
     renderEditor({ chapter: chapterFixture(), isLoading: false });
 
     setValue(screen.getByLabelText('Chapter prose'), 'Precious unsaved words.');
@@ -267,9 +284,56 @@ describe('the outline commits without a button', () => {
     setValue(status, 'draft');
 
     await waitFor(() => expect(stub.saveOutline).toHaveBeenCalled());
-    expect(stub.saveBody).not.toHaveBeenCalled();
+    expect(stub.saveProse).not.toHaveBeenCalled();
     expect((screen.getByLabelText('Chapter prose') as HTMLTextAreaElement).value).toBe(
       'Original prose.',
+    );
+  });
+});
+
+describe('author notes', () => {
+  it('saves both notes together with the body', async () => {
+    const stub = installBridge();
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
+
+    setValue(screen.getByLabelText('Pre-chapter note'), 'Next update on Thursday.');
+    setValue(screen.getByLabelText('Post-chapter note'), 'Discord: https://example.invalid');
+    (screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement).click();
+
+    await waitFor(() => expect(stub.saveProse).toHaveBeenCalledTimes(1));
+    expect(stub.saveProse).toHaveBeenCalledWith({
+      id: CHAPTER_ID,
+      bodyMd: '',
+      authorNotePre: 'Next update on Thursday.',
+      authorNotePost: 'Discord: https://example.invalid',
+    });
+  });
+
+  it('enables Save for a note typed without touching the prose', async () => {
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
+
+    // The button is keyed on the prose alone, so editing only a note would leave the
+    // author with a note they cannot save.
+    setValue(screen.getByLabelText('Pre-chapter note'), 'A note.');
+
+    const button = screen.getByRole('button', { name: /save prose/i }) as HTMLButtonElement;
+    await waitFor(() => expect(button.disabled).toBe(false));
+  });
+
+  it('shows both notes as stored when the chapter is reopened', () => {
+    renderEditor({
+      chapter: chapterFixture({
+        authorNotePre: 'Start at book one.',
+        authorNotePost: 'Thanks for reading.',
+      }),
+      isLoading: false,
+    });
+
+    expect((screen.getByLabelText('Pre-chapter note') as HTMLTextAreaElement).value).toBe(
+      'Start at book one.',
+    );
+    expect((screen.getByLabelText('Post-chapter note') as HTMLTextAreaElement).value).toBe(
+      'Thanks for reading.',
     );
   });
 });

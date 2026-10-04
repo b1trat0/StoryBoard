@@ -219,6 +219,8 @@ export const chapterSchema = z.object({
   outlineOutcome: z.string(),
   outlineBeat: z.string(),
   bodyMd: z.string(),
+  authorNotePre: z.string(),
+  authorNotePost: z.string(),
   wordCount: z.number().int().nonnegative(),
   rrUrl: z.string().nullable(),
   publishedAt: isoTimestampSchema.nullable(),
@@ -478,9 +480,22 @@ export const createIllustrationSlotRequestSchema = z.object({
   height: z.number().int().positive().nullable().default(null),
 });
 
-export const saveChapterBodyRequestSchema = z.object({
+/**
+ * The authored text of a chapter, saved together on one explicit action.
+ *
+ * The two author notes travel with the body because they are the same kind of
+ * thing: prose the author typed and wants published alongside the chapter. Keeping
+ * them on a separate action would mean three save buttons for one page of text.
+ *
+ * All three are required rather than defaulted. A `.default('')` would let a caller
+ * that forgets a field wipe the author's note without saying so, and a wiped note
+ * is indistinguishable from one that was never written.
+ */
+export const saveChapterProseRequestSchema = z.object({
   id: uuidSchema,
   bodyMd: z.string(),
+  authorNotePre: z.string(),
+  authorNotePost: z.string(),
 });
 
 export const saveChapterOutlineRequestSchema = z.object({
@@ -502,7 +517,7 @@ export type ListRelationsRequest = z.infer<typeof listRelationsRequestSchema>;
 export type CreateRelationRequest = z.infer<typeof createRelationRequestSchema>;
 export type ListFactsRequest = z.infer<typeof listFactsRequestSchema>;
 export type CreateFactRequest = z.infer<typeof createFactRequestSchema>;
-export type SaveChapterBodyRequest = z.infer<typeof saveChapterBodyRequestSchema>;
+export type SaveChapterProseRequest = z.infer<typeof saveChapterProseRequestSchema>;
 export type SaveChapterOutlineRequest = z.infer<typeof saveChapterOutlineRequestSchema>;
 export type CreateIllustrationSlotRequest = z.infer<
   typeof createIllustrationSlotRequestSchema
@@ -574,7 +589,7 @@ export interface StoryBoardApi {
     get(input: { id: string }): Promise<Chapter>;
     create(input: CreateChapterInput): Promise<Chapter>;
     remove(input: { id: string }): Promise<void>;
-    saveBody(input: SaveChapterBodyRequest): Promise<Chapter>;
+    saveProse(input: SaveChapterProseRequest): Promise<Chapter>;
     saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
   };
   glossary: {

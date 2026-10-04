@@ -183,6 +183,8 @@ export const chapters = pgTable(
     outlineOutcome: text('outline_outcome').notNull().default(''),
     outlineBeat: text('outline_beat').notNull().default(''),
     bodyMd: text('body_md').notNull().default(''),
+    authorNotePre: text('author_note_pre').notNull().default(''),
+    authorNotePost: text('author_note_post').notNull().default(''),
     wordCount: integer('word_count').notNull().default(0),
     rrUrl: text('rr_url'),
     publishedAt: timestamp('published_at', { withTimezone: true }),

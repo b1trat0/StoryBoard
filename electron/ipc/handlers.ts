@@ -55,7 +55,7 @@ import {
   outlineDeletionImpactSchema,
   outlineTreeSchema,
   relationWithKnowledgeSchema,
-  saveChapterBodyRequestSchema,
+  saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
   saveGlossaryTermRequestSchema,
   saveIllustrationRequestSchema,
@@ -317,12 +317,12 @@ export function createHandlers(logger: Logger) {
       },
     ),
 
-    [CHANNELS.chaptersSaveBody]: handleIpc(
+    [CHANNELS.chaptersSaveProse]: handleIpc(
       logger,
-      CHANNELS.chaptersSaveBody,
-      saveChapterBodyRequestSchema,
+      CHANNELS.chaptersSaveProse,
+      saveChapterProseRequestSchema,
       chapterSchema,
-      (input) => chapterService.saveBody(input),
+      (input) => chapterService.saveProse(input),
     ),
 
     [CHANNELS.chaptersSaveOutline]: handleIpc(

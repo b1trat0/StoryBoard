@@ -84,9 +84,11 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
     setIsSavingProse(true);
     setErrorMessage(null);
     try {
-      const persisted = await bridge.chapters.saveBody({
+      const persisted = await bridge.chapters.saveProse({
         id: current.id,
         bodyMd: current.bodyMd,
+        authorNotePre: current.authorNotePre,
+        authorNotePost: current.authorNotePost,
       });
       setDraft(persisted);
       setSaved(persisted);
@@ -120,7 +122,10 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
     );
   }
 
-  const isProseDirty = draft.bodyMd !== (saved?.bodyMd ?? '');
+  const isProseDirty =
+    draft.bodyMd !== (saved?.bodyMd ?? '') ||
+    draft.authorNotePre !== (saved?.authorNotePre ?? '') ||
+    draft.authorNotePost !== (saved?.authorNotePost ?? '');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -285,6 +290,47 @@ export function ChapterEditor({ chapter, isLoading, onSaveOutline }: ChapterEdit
               placeholder="The prose goes here."
               className="mt-3 font-serif text-[15px] leading-[1.75]"
             />
+          </section>
+
+          {/*
+            Royal Road's chapter form is Title, Author Notes, Chapter Content. The
+            notes are two separate boxes that render above and below the prose, so they
+            are two fields here rather than one. They sit below the prose because that
+            is the order the eye needs them in while writing: the chapter is the work,
+            the notes are the footnote. Kept inside the same explicit save so a note
+            cannot be typed and left behind.
+          */}
+          <section className="mt-8 border-t border-line pt-6">
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              Author notes
+            </h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+              Shown on Royal Road outside the chapter text, and left out of its RSS feed.
+              Pre sits above the prose, post sits below it.
+            </p>
+
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="chapter-note-pre">Pre-chapter note</Label>
+                <Textarea
+                  id="chapter-note-pre"
+                  value={draft.authorNotePre}
+                  onChange={(event) => onFieldChange({ authorNotePre: event.target.value })}
+                  rows={4}
+                  placeholder="Optional. Schedule, a reminder, a shout-out."
+                />
+              </div>
+              <div>
+                <Label htmlFor="chapter-note-post">Post-chapter note</Label>
+                <Textarea
+                  id="chapter-note-post"
+                  value={draft.authorNotePost}
+                  onChange={(event) => onFieldChange({ authorNotePost: event.target.value })}
+                  rows={4}
+                  placeholder="Optional. Links, thanks, housekeeping."
+                />
+              </div>
+            </div>
           </section>
         </div>
       </div>

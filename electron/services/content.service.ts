@@ -11,7 +11,7 @@ import type {
   GlossaryKind,
   GlossaryTerm,
   Illustration,
-  SaveChapterBodyRequest,
+  SaveChapterProseRequest,
   SaveChapterOutlineRequest,
 } from '../ipc/contract.js';
 import { RuleViolationError } from './storyboard.service.js';
@@ -29,7 +29,7 @@ export interface ChapterService {
   listByArc(input: { arcId: string }): Promise<Chapter[]>;
   create(input: CreateChapterInput): Promise<Chapter>;
   remove(input: { id: string }): Promise<void>;
-  saveBody(input: SaveChapterBodyRequest): Promise<Chapter>;
+  saveProse(input: SaveChapterProseRequest): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
 }
 
@@ -62,7 +62,7 @@ export function createChapterService(repo: ChapterRepository): ChapterService {
      * word_count is derived here rather than by the renderer, because the value
      * is shown in the outline and in export previews and must agree everywhere.
      */
-    async saveBody(input) {
+    async saveProse(input) {
       // The prose save needs the same guard as the outline save. Without it the
       // update matches no rows and the driver surfaces "Chapter <uuid> was not
       // found", which is both a confusing message and one that leaks an internal
@@ -71,7 +71,7 @@ export function createChapterService(repo: ChapterRepository): ChapterService {
       if (existing === null) {
         throw new RuleViolationError('That chapter no longer exists, so nothing was saved.');
       }
-      return repo.saveBody(input, countWords(input.bodyMd));
+      return repo.saveProse(input, countWords(input.bodyMd));
     },
 
     async saveOutline(input) {

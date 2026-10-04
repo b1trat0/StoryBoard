@@ -73,7 +73,7 @@ export function createBridgeApi(): StoryBoardApi {
       get: (input) => invoke(CHANNELS.chaptersGet, input),
       create: (input) => invoke(CHANNELS.chaptersCreate, input),
       remove: (input) => invokeVoid(CHANNELS.chaptersRemove, input),
-      saveBody: (input) => invoke(CHANNELS.chaptersSaveBody, input),
+      saveProse: (input) => invoke(CHANNELS.chaptersSaveProse, input),
       saveOutline: (input) => invoke(CHANNELS.chaptersSaveOutline, input),
     },
     glossary: {

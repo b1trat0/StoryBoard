@@ -73,7 +73,12 @@ export interface StoryBoardBridge {
     get(input: { id: string }): Promise<Chapter>;
     create(input: { arcId: string; title: string; type?: ChapterType; status?: ChapterStatus }): Promise<Chapter>;
     remove(input: { id: string }): Promise<void>;
-    saveBody(input: { id: string; bodyMd: string }): Promise<Chapter>;
+    saveProse(input: {
+      id: string;
+      bodyMd: string;
+      authorNotePre: string;
+      authorNotePost: string;
+    }): Promise<Chapter>;
     saveOutline(input: SaveChapterOutlineInput): Promise<Chapter>;
   };
   glossary: {
@@ -252,6 +257,8 @@ export interface Chapter {
   outlineOutcome: string;
   outlineBeat: string;
   bodyMd: string;
+  authorNotePre: string;
+  authorNotePost: string;
   wordCount: number;
   rrUrl: string | null;
   publishedAt: string | null;
