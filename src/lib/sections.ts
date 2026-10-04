@@ -12,6 +12,7 @@ export const SECTIONS = [
   { id: 'glossary', label: 'Glossary', isBuilt: false },
   { id: 'relations', label: 'Relations', isBuilt: false },
   { id: 'illustrations', label: 'Illustrations', isBuilt: false },
+  { id: 'formatting', label: 'Formatting', isBuilt: true },
   { id: 'export', label: 'Royal Road export', isBuilt: true },
 ] as const;
 

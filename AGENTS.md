@@ -229,6 +229,15 @@ storage format can be pasted straight in.
     blockquotes, links, images and code are returned as `warnings` alongside the HTML so the
     release preview can show them. A literal `#` reaching a published chapter is worse than a
     loud message, because the author has no way to notice it after the fact.
+- **The app carries its own formatting reference, and it is verified.** The author cannot be
+  expected to hold the translation table in their head; that is the same forgetfulness this
+  app exists to solve. `src/features/export/formatting-examples.ts` holds the data,
+  `formatting-reference.tsx` renders it, and `tests/unit/formatting-examples.test.ts` asserts
+  every documented example against `toRoyalRoadHtml`. **Add new syntax to the data, never to the
+  screen as hand-written text.** A reference that has drifted from the converter sends the
+  author into chapters that are wrong in a way nobody notices until they are published.
+  - **Underline is the known gap.** Royal Road's toolbar has it and plain markdown cannot
+    express it. State that rather than inventing syntax that does not work.
 - **A blank line is a paragraph; a single newline is a line break.** This is not a guess:
   Royal Road's own "clean paste" option exists to repair content where "some editors only use
   line breaks instead of paragraphs for spacing". `splitParagraphs` already implements

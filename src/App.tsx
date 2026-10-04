@@ -17,6 +17,7 @@ import { EntityDetail } from './features/entities/entity-detail';
 import { EntityList } from './features/entities/entity-list';
 import { EntitySidebar } from './features/entities/entity-sidebar';
 import { useEntities } from './features/entities/use-entities';
+import { FormattingReference } from './features/export/formatting-reference';
 import { ReleasePreview } from './features/export/release-preview';
 
 /**
@@ -236,6 +237,8 @@ export function App() {
                 commitProse={draft.commitProse}
               />
             )}
+
+            {activeSection === 'formatting' && <FormattingReference />}
 
             {activeSection === 'export' && (
               <ReleasePreview
