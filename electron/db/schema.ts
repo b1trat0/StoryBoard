@@ -102,8 +102,9 @@ export const projects = pgTable('projects', {
   kind: projectKindEnum('kind').notNull().default('light_novel'),
   exportProfile: exportProfileEnum('export_profile').notNull().default('royal_road'),
   summary: text('summary').notNull().default(''),
-  archivedAt: timestamp('archived_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  /** Where this work's files live. Empty means the app default. */
+  storageRoot: text('storage_root').notNull().default(''),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

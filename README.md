@@ -74,8 +74,9 @@ npm run db:restore   # proves the backup is restorable
 ## Privacy
 
 The app is local-only: no telemetry, no HTTP server, no accounts. Nothing leaves the machine
-except an illustration explicitly uploaded by the author to an image host. There is no AI
-feature yet; when one lands it will be per-chapter and opt-in.
+except two deliberate actions: an illustration explicitly uploaded by the author to an image
+host, and a single chapter sent to DeepSeek when the author presses a button in the writing
+assist dialog. The API key is stored OS-encrypted and is never returned to the UI.
 
 Database credentials are development defaults bound to `127.0.0.1` and are not secrets.
 No manuscript text, database dump, API key or local path is ever committed to this

@@ -166,6 +166,7 @@ export interface StoryBoardBridge {
       kind?: ProjectKind;
       exportProfile?: ExportProfile;
       summary?: string;
+      storageRoot?: string;
     }): Promise<Project>;
     update(input: {
       id: string;
@@ -173,6 +174,7 @@ export interface StoryBoardBridge {
       kind?: ProjectKind;
       exportProfile?: ExportProfile;
       summary?: string;
+      storageRoot?: string;
     }): Promise<Project>;
     archive(input: { id: string }): Promise<Project>;
     getActive(input?: Record<string, never>): Promise<{ projectId: string | null }>;
@@ -181,7 +183,44 @@ export interface StoryBoardBridge {
   search: {
     query(input: { projectId: string; query: string }): Promise<SearchResult[]>;
   };
+  system: {
+    pickDirectory(input?: Record<string, never>): Promise<PickDirectoryResult>;
+  };
+  ai: {
+    status(input?: Record<string, never>): Promise<AiStatus>;
+    setKey(input: { apiKey: string }): Promise<void>;
+    clearKey(input?: Record<string, never>): Promise<void>;
+    checkChapter(input: { chapterId: string }): Promise<{ suggestions: AiSuggestion[] }>;
+    proposeFacts(input: { chapterId: string }): Promise<{ proposals: AiFactProposal[] }>;
+  };
 }
+
+/** Whether a key is stored, and whether this machine can encrypt one. */
+export interface AiStatus {
+  isConfigured: boolean;
+  isEncryptionAvailable: boolean;
+}
+
+/** One suggested edit as a character span. The author applies it or not. */
+export interface AiSuggestion {
+  start: number;
+  end: number;
+  original: string;
+  suggestion: string;
+  kind: 'grammar' | 'spelling' | 'style' | 'clarity' | 'tense' | 'pov';
+  message: string;
+}
+
+/** A proposed fact whose quote was verified against the chapter. */
+export interface AiFactProposal {
+  kind: FactKind;
+  content: string;
+  sourceQuote: string;
+}
+
+export type PickDirectoryResult =
+  | { status: 'picked'; directory: string }
+  | { status: 'cancelled' };
 
 /** One recall result: an entity, a glossary term, or a fact. */
 export interface SearchResult {
@@ -203,6 +242,7 @@ export interface Project {
   kind: ProjectKind;
   exportProfile: ExportProfile;
   summary: string;
+  storageRoot: string;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

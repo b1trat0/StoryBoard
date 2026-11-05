@@ -6,7 +6,7 @@ import { handleIpc } from '../controllers/ipc-handler.js';
 import type { IpcResult } from '../controllers/ipc-handler.js';
 import type { Logger } from '../lib/logger.js';
 import { createCatboxHost } from '../interfaces/catbox.interface.js';
-import type { SaveFilePicker, ImagePicker } from '../interfaces/file-dialog.interface.js';
+import type { SaveFilePicker, ImagePicker, DirectoryPicker } from '../interfaces/file-dialog.interface.js';
 import { createChapterRepository } from '../repositories/chapter.repository.js';
 import { createOutlineRepository } from '../repositories/outline.repository.js';
 import { createEntityRepository } from '../repositories/entity.repository.js';
@@ -28,6 +28,10 @@ import { createDraftRecoveryService } from '../services/draft-recovery.service.j
 import { createArchiveService } from '../services/archive.service.js';
 import { createProjectService } from '../services/project.service.js';
 import { createSearchService } from '../services/search.service.js';
+import { createAiKeyStore } from '../services/ai-key.service.js';
+import type { KeyCrypto } from '../services/ai-key.service.js';
+import { createAiService } from '../services/ai.service.js';
+import { createDeepSeekProvider } from '../interfaces/deepseek.interface.js';
 import { createSettingsService } from '../services/settings.service.js';
 import { createDockerBackupSource } from '../lib/docker-backup.js';
 import { getBackupMirrorDir, getBackupsDir } from '../config.js';
@@ -95,6 +99,15 @@ import {
   setActiveProjectRequestSchema,
   searchRequestSchema,
   searchResultSchema,
+  pickDirectoryRequestSchema,
+  pickDirectoryResultSchema,
+  aiStatusSchema,
+  aiStatusRequestSchema,
+  aiSetKeyRequestSchema,
+  aiClearKeyRequestSchema,
+  aiChapterRequestSchema,
+  aiSuggestionsResultSchema,
+  aiProposalsResultSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -154,6 +167,16 @@ export function createHandlers(
   draftsDir: string = path.join(process.cwd(), 'drafts'),
   settingsPath: string = path.join(process.cwd(), 'settings.json'),
   pickImage: ImagePicker = { pick: async () => ({ status: 'cancelled' }) },
+  pickDirectory: DirectoryPicker = { pick: async () => ({ status: 'cancelled' }) },
+  aiCrypto: KeyCrypto = {
+    isAvailable: () => false,
+    encrypt: () => {
+      throw new Error('AI key encryption is unavailable in this process');
+    },
+    decrypt: () => {
+      throw new Error('AI key encryption is unavailable in this process');
+    },
+  },
 ) {
   // Repositories are created once and shared: the archive needs the same rows the
   // editing screens see, and a second instance would be a second view of the database.
@@ -220,6 +243,25 @@ export function createHandlers(
     settingsService,
   );
   const searchService = createSearchService(createSearchRepository());
+  // The key file sits beside the settings file, in userData. Its contents are
+  // OS-encrypted; this path only holds the ciphertext.
+  const aiService = createAiService({
+    chapters: chapterRepository,
+    glossary: glossaryRepository,
+    keys: createAiKeyStore({
+      filePath: path.join(path.dirname(settingsPath), 'ai-key.json'),
+      crypto: aiCrypto,
+    }),
+    makeProvider: (apiKey) => createDeepSeekProvider({ apiKey }),
+    resolveProjectId: async (chapter) => {
+      const arc = await outlineRepository.findArcById(chapter.arcId);
+      if (arc === null) {
+        return null;
+      }
+      const volume = await outlineRepository.findVolumeById(arc.volumeId);
+      return volume?.projectId ?? null;
+    },
+  });
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -616,6 +658,58 @@ export function createHandlers(
       listProjectsRequestSchema,
       projectListSchema,
       (input) => projectService.list(input),
+    ),
+
+    [CHANNELS.aiStatus]: handleIpc(
+      logger,
+      CHANNELS.aiStatus,
+      aiStatusRequestSchema,
+      aiStatusSchema,
+      () => aiService.status(),
+    ),
+
+    [CHANNELS.aiSetKey]: handleIpc(
+      logger,
+      CHANNELS.aiSetKey,
+      aiSetKeyRequestSchema,
+      null,
+      async (input) => {
+        await aiService.setKey(input.apiKey);
+      },
+    ),
+
+    [CHANNELS.aiClearKey]: handleIpc(
+      logger,
+      CHANNELS.aiClearKey,
+      aiClearKeyRequestSchema,
+      null,
+      async () => {
+        await aiService.clearKey();
+      },
+    ),
+
+    [CHANNELS.aiCheckChapter]: handleIpc(
+      logger,
+      CHANNELS.aiCheckChapter,
+      aiChapterRequestSchema,
+      aiSuggestionsResultSchema,
+      (input) => aiService.checkChapter(input),
+    ),
+
+    [CHANNELS.aiProposeFacts]: handleIpc(
+      logger,
+      CHANNELS.aiProposeFacts,
+      aiChapterRequestSchema,
+      aiProposalsResultSchema,
+      (input) => aiService.proposeFacts(input),
+    ),
+
+    [CHANNELS.systemPickDirectory]: handleIpc(
+      logger,
+      CHANNELS.systemPickDirectory,
+      pickDirectoryRequestSchema,
+      pickDirectoryResultSchema,
+      () => pickDirectory.pick(),
     ),
 
     [CHANNELS.searchQuery]: handleIpc(

@@ -23,6 +23,7 @@ export interface ProjectsState {
     title: string;
     kind: ProjectKind;
     exportProfile: 'royal_road' | 'plain';
+    storageRoot: string;
   }) => Promise<Project>;
   refresh: () => Promise<void>;
 }
@@ -77,6 +78,7 @@ export function useProjects(): ProjectsState {
       title: string;
       kind: ProjectKind;
       exportProfile: 'royal_road' | 'plain';
+      storageRoot: string;
     }): Promise<Project> => {
       const bridge = getBridge();
       if (bridge === null) {

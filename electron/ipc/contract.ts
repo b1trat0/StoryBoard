@@ -290,6 +290,8 @@ export const projectSchema = z.object({
   kind: projectKindSchema,
   exportProfile: exportProfileSchema,
   summary: z.string(),
+  /** Absolute folder for this work's files. Empty means the app default. */
+  storageRoot: z.string(),
   archivedAt: isoTimestampSchema.nullable(),
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema,
@@ -304,6 +306,7 @@ export const createProjectRequestSchema = z.object({
   kind: projectKindSchema.default('light_novel'),
   exportProfile: exportProfileSchema.default('royal_road'),
   summary: z.string().default(''),
+  storageRoot: z.string().default(''),
 });
 
 export const updateProjectRequestSchema = z.object({
@@ -312,6 +315,7 @@ export const updateProjectRequestSchema = z.object({
   kind: projectKindSchema.optional(),
   exportProfile: exportProfileSchema.optional(),
   summary: z.string().optional(),
+  storageRoot: z.string().optional(),
 });
 
 export const archiveProjectRequestSchema = z.object({ id: uuidSchema });
@@ -322,6 +326,13 @@ export const activeProjectSchema = z.object({
 });
 
 export const setActiveProjectRequestSchema = z.object({ projectId: uuidSchema });
+
+export const pickDirectoryRequestSchema = z.object({});
+
+export const pickDirectoryResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('picked'), directory: z.string() }),
+  z.object({ status: z.literal('cancelled') }),
+]);
 
 // --- search ----------------------------------------------------------------
 
@@ -337,6 +348,61 @@ export const searchResultSchema = z.object({
   detail: z.string(),
   chapterId: uuidSchema.nullable(),
   entityType: entityTypeSchema.nullable(),
+});
+
+// --- AI assist --------------------------------------------------------------
+
+export const aiStatusSchema = z.object({
+  isConfigured: z.boolean(),
+  isEncryptionAvailable: z.boolean(),
+});
+
+/** Status and clear take no arguments; the schema exists so the handler validates. */
+export const aiStatusRequestSchema = z.object({});
+
+export const aiSetKeyRequestSchema = z.object({ apiKey: nonEmptyText });
+
+export const aiClearKeyRequestSchema = z.object({});
+
+export const aiChapterRequestSchema = z.object({ chapterId: uuidSchema });
+
+export const suggestionKindSchema = z.enum([
+  'grammar',
+  'spelling',
+  'style',
+  'clarity',
+  'tense',
+  'pov',
+]);
+
+/**
+ * One suggested edit, as a character span.
+ *
+ * A span rather than rewritten prose: the author applies it or ignores it, and the AI
+ * never becomes the author of a paragraph.
+ */
+export const aiSuggestionSchema = z.object({
+  start: z.number().int().nonnegative(),
+  end: z.number().int().nonnegative(),
+  original: z.string(),
+  suggestion: z.string(),
+  kind: suggestionKindSchema,
+  message: z.string(),
+});
+
+export const aiSuggestionsResultSchema = z.object({
+  suggestions: z.array(aiSuggestionSchema),
+});
+
+/** A proposed fact. `sourceQuote` was verified against the chapter before this arrived. */
+export const aiFactProposalSchema = z.object({
+  kind: factKindSchema,
+  content: z.string(),
+  sourceQuote: z.string(),
+});
+
+export const aiProposalsResultSchema = z.object({
+  proposals: z.array(aiFactProposalSchema),
 });
 
 // --- backups ---------------------------------------------------------------
@@ -541,7 +607,11 @@ export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export type ListProjectsRequest = z.input<typeof listProjectsRequestSchema>;
 export type CreateProjectInput = z.input<typeof createProjectRequestSchema>;
 export type PickImageResult = z.infer<typeof pickImageResultSchema>;
+export type PickDirectoryResult = z.infer<typeof pickDirectoryResultSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
+export type AiStatus = z.infer<typeof aiStatusSchema>;
+export type AiSuggestion = z.infer<typeof aiSuggestionSchema>;
+export type AiFactProposal = z.infer<typeof aiFactProposalSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -1055,6 +1125,23 @@ export interface StoryBoardApi {
   search: {
     /** Case-insensitive recall across entities, glossary and facts. */
     query(input: { projectId: string; query: string }): Promise<SearchResult[]>;
+  };
+  system: {
+    /** Asks the author for a folder, for a work's file storage. */
+    pickDirectory(input: Record<string, never>): Promise<PickDirectoryResult>;
+  };
+  /**
+   * Read-only analysis, on demand.
+   *
+   * The key is written once and never read back by the renderer. Chapters are sent to
+   * the provider only when the author presses a button in the assist dialog.
+   */
+  ai: {
+    status(input: Record<string, never>): Promise<AiStatus>;
+    setKey(input: { apiKey: string }): Promise<void>;
+    clearKey(input: Record<string, never>): Promise<void>;
+    checkChapter(input: { chapterId: string }): Promise<{ suggestions: AiSuggestion[] }>;
+    proposeFacts(input: { chapterId: string }): Promise<{ proposals: AiFactProposal[] }>;
   };
 }
 

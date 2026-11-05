@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, FloppyDisk, MagnifyingGlass } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, FloppyDisk, MagnifyingGlass, Sparkle } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { EmptyState, Skeleton } from '../../components/ui/empty-state';
@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { FactsPanel } from '../facts/facts-panel';
+import { AssistDialog } from '../assist/assist-dialog';
 import { IllustrationsPanel } from '../illustrations/illustrations-panel';
 import { countParagraphs } from '../../lib/chapter-text';
 import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';
@@ -91,6 +92,7 @@ export function ChapterEditor({
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [isFindOpen, setIsFindOpen] = useState(false);
+  const [isAssistOpen, setIsAssistOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -144,6 +146,15 @@ export function ChapterEditor({
               {typeDescription(draft.type)}
             </span>
             <div className="ml-auto flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Writing assist"
+                onClick={() => setIsAssistOpen(true)}
+              >
+                <Sparkle size={14} weight="bold" aria-hidden="true" />
+                Assist
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -512,6 +523,26 @@ export function ChapterEditor({
           </section>
         </div>
       </div>
+
+      {isAssistOpen && (
+        <AssistDialog
+          chapterId={draft.id}
+          projectId={projectId}
+          bodyMd={draft.bodyMd}
+          onApplySuggestion={(suggestion) => {
+            // Applying is a plain splice at the offsets the model returned. The span
+            // was verified against this exact text before it reached here, and the
+            // author can still undo it with the buffer's own undo.
+            onFieldChange({
+              bodyMd:
+                draft.bodyMd.slice(0, suggestion.start) +
+                suggestion.suggestion +
+                draft.bodyMd.slice(suggestion.end),
+            });
+          }}
+          onClose={() => setIsAssistOpen(false)}
+        />
+      )}
 
       <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface px-6 py-3">
         <span className="mr-auto text-[12px] text-ink-muted">

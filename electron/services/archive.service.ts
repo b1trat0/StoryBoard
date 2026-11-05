@@ -120,6 +120,7 @@ export function createArchiveService(deps: ArchiveServiceDeps): ArchiveService {
         suggestedName: toArchiveFileName(project.title),
         bytes,
         kind: 'json',
+        defaultDirectory: project.storageRoot,
       });
 
       if (saved.status === 'cancelled') {

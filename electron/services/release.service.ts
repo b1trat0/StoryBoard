@@ -1,6 +1,7 @@
 import { buildChapterRelease } from '../lib/release-chapter.js';
 import type { ChapterRelease, ReleaseWarning } from '../lib/release-chapter.js';
 import type { Chapter } from '../ipc/contract.js';
+import type { Project } from '../ipc/contract.js';
 import { planVolumeDocx } from '../lib/volume-docx-plan.js';
 import type { VolumeDocxPlan } from '../lib/volume-docx-plan.js';
 import { renderVolumeDocx } from '../lib/docx-writer.js';
@@ -112,8 +113,9 @@ export function createReleaseService(
         throw new RuleViolationError('That chapter no longer exists, so there is nothing to preview.');
       }
       const slots = await illustrations.listByChapter(chapter.id);
+      const project = await resolveProject(chapter, outline, projects);
       return buildChapterRelease(chapter, slots, {
-        profile: await resolveProfile(chapter, outline, projects),
+        profile: profileOf(project),
       });
     },
 
@@ -153,8 +155,9 @@ export function createReleaseService(
       }
 
       const slots = await illustrations.listByChapter(chapter.id);
+      const project = await resolveProject(chapter, outline, projects);
       const release = buildChapterRelease(chapter, slots, {
-        profile: await resolveProfile(chapter, outline, projects),
+        profile: profileOf(project),
       });
       const html = renderChapterDocument(release, escapeHtmlText(chapter.title));
       const bytes = Buffer.from(html, 'utf8');
@@ -163,6 +166,7 @@ export function createReleaseService(
         suggestedName: toChapterHtmlFileName(chapter.title),
         bytes,
         kind: 'html',
+        defaultDirectory: project?.storageRoot,
       });
 
       if (saved.status === 'cancelled') {
@@ -181,30 +185,38 @@ export function createReleaseService(
 }
 
 /**
- * Which publishing rules apply to a chapter.
+ * Which work a chapter belongs to.
  *
  * Walks chapter → arc → volume → work, because a chapter does not carry its project id
- * directly. Falls back to Royal Road when the chain is incomplete or no project
- * repository was supplied, so the strictest rules apply unless the work says otherwise.
+ * directly. Null when the chain is incomplete or no project repository was supplied.
  */
-async function resolveProfile(
+async function resolveProject(
   chapter: Chapter,
   outline: OutlineRepository,
   projects: ProjectRepository | undefined,
-): Promise<ReleaseProfile> {
+): Promise<Project | null> {
   if (projects === undefined) {
-    return 'royal_road';
+    return null;
   }
 
   const arc = await outline.findArcById(chapter.arcId);
   if (arc === null) {
-    return 'royal_road';
+    return null;
   }
   const volume = await outline.findVolumeById(arc.volumeId);
   if (volume === null) {
-    return 'royal_road';
+    return null;
   }
-  const project = await projects.findById(volume.projectId);
+  return projects.findById(volume.projectId);
+}
+
+/**
+ * Which publishing rules apply.
+ *
+ * Falls back to Royal Road when the work cannot be resolved, so the strictest rules
+ * apply unless the work says otherwise.
+ */
+function profileOf(project: Project | null): ReleaseProfile {
   return project?.exportProfile ?? 'royal_road';
 }
 

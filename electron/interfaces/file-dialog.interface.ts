@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { BrowserWindow, dialog, nativeImage } from 'electron';
-import type { FileFilter } from 'electron';
+import type { FileFilter, OpenDialogOptions } from 'electron';
 
 /**
  * Saving an export file.
@@ -36,7 +37,43 @@ export interface SaveFilePicker {
     suggestedName: string;
     bytes: Buffer;
     kind?: 'docx' | 'html' | 'json';
+    /** Folder the dialog opens in. Falls back to the last used folder. */
+    defaultDirectory?: string;
   }): Promise<SaveFileOutcome>;
+}
+
+export function createDirectoryPicker(
+  getWindow: () => BrowserWindow | null,
+): DirectoryPicker {
+  return {
+    async pick() {
+      const parent = getWindow();
+      const options: OpenDialogOptions = {
+        title: 'Choose where this work keeps its files',
+        properties: ['openDirectory', 'createDirectory'],
+      };
+      const result =
+        parent === null
+          ? await dialog.showOpenDialog(options)
+          : await dialog.showOpenDialog(parent, options);
+
+      const directory = result.filePaths[0];
+      if (result.canceled || directory === undefined) {
+        return { status: 'cancelled' };
+      }
+      return { status: 'picked', directory };
+    },
+  };
+}
+
+/** Choosing a folder for a work's files. */
+export type PickDirectoryOutcome =
+  | { status: 'picked'; directory: string }
+  | { status: 'cancelled' };
+
+export interface DirectoryPicker {
+  /** Asks the author for one folder. */
+  pick(): Promise<PickDirectoryOutcome>;
 }
 
 export class ExportWriteError extends Error {
@@ -123,15 +160,19 @@ export function createImagePicker(getWindow: () => BrowserWindow | null): ImageP
  */
 export function createSaveFilePicker(getWindow: () => BrowserWindow | null): SaveFilePicker {
   return {
-    async save({ suggestedName, bytes, kind = 'docx' }) {
+    async save({ suggestedName, bytes, kind = 'docx', defaultDirectory }) {
       const parent = getWindow();
       const filters = [FILTERS[kind]];
+      const defaultPath =
+        defaultDirectory === undefined || defaultDirectory.trim() === ''
+          ? suggestedName
+          : path.join(defaultDirectory, suggestedName);
 
       const result =
         parent === null
-          ? await dialog.showSaveDialog({ defaultPath: suggestedName, filters })
+          ? await dialog.showSaveDialog({ defaultPath, filters })
           : await dialog.showSaveDialog(parent, {
-              defaultPath: suggestedName,
+              defaultPath,
               filters,
             });
 

@@ -64,6 +64,12 @@ export const CHANNELS = {
   projectsGetActive: 'projects:getActive',
   projectsSetActive: 'projects:setActive',
   searchQuery: 'search:query',
+  systemPickDirectory: 'system:pickDirectory',
+  aiStatus: 'ai:status',
+  aiSetKey: 'ai:setKey',
+  aiClearKey: 'ai:clearKey',
+  aiCheckChapter: 'ai:checkChapter',
+  aiProposeFacts: 'ai:proposeFacts',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

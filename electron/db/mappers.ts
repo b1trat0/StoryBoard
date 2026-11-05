@@ -209,6 +209,7 @@ export function toProjectDto(row: ProjectRow): Project {
     kind: row.kind,
     exportProfile: row.exportProfile,
     summary: row.summary,
+    storageRoot: row.storageRoot,
     archivedAt: toIso(row.archivedAt),
     createdAt: requiredIso(row.createdAt),
     updatedAt: requiredIso(row.updatedAt),

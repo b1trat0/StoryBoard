@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { getBridge } from '../../lib/bridge';
 import type { ProjectKind } from '../../lib/bridge';
 
 export interface ProjectCreateDialogProps {
@@ -13,6 +14,7 @@ export interface ProjectCreateDialogProps {
     title: string;
     kind: ProjectKind;
     exportProfile: 'royal_road' | 'plain';
+    storageRoot: string;
   }) => Promise<void>;
 }
 
@@ -37,11 +39,14 @@ export function ProjectCreateDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [chooseStorageRoot, setChooseStorageRoot] = useState('');
+
   function reset(): void {
     setTitle('');
     setKind('light_novel');
     setExportProfile('royal_road');
     setErrorMessage(null);
+    setChooseStorageRoot('');
   }
 
   function close(): void {
@@ -59,7 +64,7 @@ export function ProjectCreateDialog({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      await onSubmit({ title: trimmed, kind, exportProfile });
+      await onSubmit({ title: trimmed, kind, exportProfile, storageRoot: chooseStorageRoot });
       reset();
       onClose();
     } catch (err) {
@@ -133,6 +138,39 @@ export function ProjectCreateDialog({
           manuscript skips them, so a normal book is not told it is too short for a web
           serial.
         </p>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="work-storage" hint="optional">
+            Data folder
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="work-storage"
+              value={chooseStorageRoot}
+              readOnly
+              placeholder="The app's default folder"
+              className="font-mono text-[12px]"
+            />
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void getBridge()
+                  ?.system.pickDirectory({})
+                  .then((result) => {
+                    if (result.status === 'picked') {
+                      setChooseStorageRoot(result.directory);
+                    }
+                  });
+              }}
+            >
+              Choose…
+            </Button>
+          </div>
+          <p className="text-[11.5px] leading-relaxed text-ink-muted">
+            Where this work's exports, archive and illustration files go. Each work can
+            keep its files somewhere different; leaving it empty uses the app default.
+          </p>
+        </div>
 
         {errorMessage !== null && (
           <p role="alert" className="text-[12.5px] text-danger">

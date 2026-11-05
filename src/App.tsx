@@ -187,6 +187,7 @@ export function App() {
       title: string;
       kind: 'light_novel' | 'novel';
       exportProfile: 'royal_road' | 'plain';
+      storageRoot: string;
     }) => {
       const created = await projects.createProject(input);
       setSelectedId(null);

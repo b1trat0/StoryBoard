@@ -127,6 +127,16 @@ export function createBridgeApi(): StoryBoardApi {
     search: {
       query: (input) => invoke(CHANNELS.searchQuery, input),
     },
+    system: {
+      pickDirectory: (input) => invoke(CHANNELS.systemPickDirectory, input),
+    },
+    ai: {
+      status: (input) => invoke(CHANNELS.aiStatus, input),
+      setKey: (input) => invokeVoid(CHANNELS.aiSetKey, input),
+      clearKey: (input) => invokeVoid(CHANNELS.aiClearKey, input),
+      checkChapter: (input) => invoke(CHANNELS.aiCheckChapter, input),
+      proposeFacts: (input) => invoke(CHANNELS.aiProposeFacts, input),
+    },
   };
 }
 

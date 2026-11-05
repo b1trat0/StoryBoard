@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from './lib/logger.js';
@@ -7,7 +7,7 @@ import { closeDb, initDb } from './db/client.js';
 import { createHandlers } from './ipc/handlers.js';
 import type { Handlers, QuitControls } from './ipc/handlers.js';
 import { EVENTS } from './ipc/channels.js';
-import { createSaveFilePicker, createImagePicker } from './interfaces/file-dialog.interface.js';
+import { createSaveFilePicker, createImagePicker, createDirectoryPicker } from './interfaces/file-dialog.interface.js';
 
 /**
  * Electron main process.
@@ -63,6 +63,14 @@ function registerIpcHandlers(): Handlers {
     path.join(app.getPath('userData'), 'drafts'),
     path.join(app.getPath('userData'), 'settings.json'),
     createImagePicker(() => mainWindow),
+    createDirectoryPicker(() => mainWindow),
+    {
+      // DPAPI on Windows, Keychain on macOS, libsecret on Linux. The key is stored
+      // encrypted and is never returned to the renderer.
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (value) => safeStorage.encryptString(value).toString('base64'),
+      decrypt: (payload) => safeStorage.decryptString(Buffer.from(payload, 'base64')),
+    },
   );
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.

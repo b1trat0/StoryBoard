@@ -64,6 +64,7 @@ export function createProjectRepository(): ProjectRepository {
           kind: input.kind,
           exportProfile: input.exportProfile,
           summary: input.summary,
+          storageRoot: input.storageRoot,
         })
         .returning();
       const row = rows[0];
@@ -84,6 +85,7 @@ export function createProjectRepository(): ProjectRepository {
             ? {}
             : { exportProfile: input.exportProfile }),
           ...(input.summary === undefined ? {} : { summary: input.summary }),
+          ...(input.storageRoot === undefined ? {} : { storageRoot: input.storageRoot }),
           updatedAt: new Date(),
         })
         .where(eq(projects.id, input.id))
