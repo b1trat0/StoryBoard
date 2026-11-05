@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StoryBoard — Engineering Audit</title>
+<style>
+  :root {
+    --paper: #f6f5f2;
+    --surface: #ffffff;
+    --sunken: #efeeea;
+    --ink: #1b1b19;
+    --ink-soft: #46453f;
+    --ink-muted: #6e6d66;
+    --line: #e3e1da;
+    --line-strong: #ccc9c0;
+    --accent: #2f5d50;
+    --accent-soft: #e6efeb;
+    --danger: #8f3126;
+    --danger-soft: #f8eae7;
+    --warn: #8a5a12;
+    --warn-soft: #fbf1de;
+    --ok: #2f5d50;
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 32px 96px; }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    padding: 18px 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: saturate(160%) blur(8px);
+  }
+
+  .masthead .wrap { padding-bottom: 0; padding-top: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+
+  .brand { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand span { color: var(--ink-muted); font-family: var(--sans); font-size: 13px; font-weight: 400; margin-left: 10px; letter-spacing: 0; }
+
+  .masthead nav { display: flex; gap: 18px; flex-wrap: wrap; }
+  .masthead nav a { color: var(--ink-muted); text-decoration: none; font-size: 13px; }
+  .masthead nav a:hover { color: var(--accent); }
+
+  /* ---------- hero ---------- */
+
+  .hero { padding: 56px 0 8px; }
+
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--ink-muted); font-weight: 600; margin-bottom: 14px;
+  }
+
+  h1 {
+    font-family: var(--serif); font-weight: 600; font-size: 40px; line-height: 1.15;
+    letter-spacing: -0.02em; margin: 0 0 14px; max-width: 22ch;
+  }
+
+  .lede { font-size: 17px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
+
+  .hero-grid { display: grid; grid-template-columns: 1fr 232px; gap: 40px; align-items: start; margin-top: 32px; }
+
+  .verdict {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 22px 24px;
+  }
+
+  .verdict p { margin: 0 0 10px; font-size: 14px; color: var(--ink-soft); }
+  .verdict p:last-child { margin-bottom: 0; }
+  .verdict strong { color: var(--ink); }
+
+  .score-dial {
+    --pct: 69;
+    width: 232px; height: 232px; border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--pct) * 1%), var(--sunken) 0);
+    display: grid; place-items: center; position: relative;
+  }
+  .score-dial::before {
+    content: ""; position: absolute; inset: 14px; border-radius: 50%; background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .score-dial .inner { position: relative; text-align: center; }
+  .score-dial .num { font-family: var(--serif); font-size: 46px; line-height: 1; font-weight: 600; letter-spacing: -0.03em; }
+  .score-dial .den { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+  .score-dial .cap { font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-muted); margin-top: 12px; }
+
+  /* ---------- stats ---------- */
+
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 40px 0 0; }
+  .stat { background: var(--surface); padding: 16px 18px; }
+  .stat .v { font-family: var(--serif); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .stat .k { font-size: 11.5px; color: var(--ink-muted); margin-top: 4px; line-height: 1.4; }
+  .stat.bad .v { color: var(--danger); }
+  .stat.good .v { color: var(--accent); }
+
+  /* ---------- sections ---------- */
+
+  section { margin-top: 64px; scroll-margin-top: 84px; }
+
+  h2 {
+    font-family: var(--serif); font-size: 27px; font-weight: 600; letter-spacing: -0.015em;
+    margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+
+  h2 .n { color: var(--line-strong); font-family: var(--mono); font-size: 13px; margin-right: 12px; vertical-align: 2px; letter-spacing: 0; }
+
+  h3 { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 32px 0 8px; letter-spacing: -0.01em; }
+
+  h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); margin: 26px 0 8px; }
+
+  p { margin: 0 0 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); }
+
+  code {
+    font-family: var(--mono); font-size: 0.875em; background: var(--sunken);
+    padding: 1px 5px; border-radius: 4px; color: var(--ink-soft);
+    overflow-wrap: anywhere;
+  }
+
+  .sub { color: var(--ink-muted); font-size: 14px; margin: 10px 0 0; }
+
+  /* ---------- scorecard ---------- */
+
+  .scorecard { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); margin-top: 20px; }
+
+  .score-row {
+    display: grid; grid-template-columns: 232px 74px 1fr; gap: 20px;
+    padding: 16px 20px; border-bottom: 1px solid var(--line); align-items: start;
+  }
+  .score-row:last-child { border-bottom: 0; }
+  .score-row.head { background: var(--sunken); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); font-weight: 600; padding: 9px 20px; }
+
+  .metric { font-size: 14px; font-weight: 600; }
+  .metric small { display: block; font-weight: 400; color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+
+  .grade { font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+  .grade small { font-family: var(--sans); font-size: 11px; color: var(--ink-muted); font-weight: 400; }
+  .g-hi { color: var(--accent); }
+  .g-mid { color: var(--warn); }
+  .g-low { color: var(--danger); }
+
+  .why { font-size: 13.5px; color: var(--ink-soft); }
+  .why b { color: var(--ink); font-weight: 600; }
+
+  .bar { height: 4px; background: var(--sunken); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+  .bar i.mid { background: var(--warn); }
+  .bar i.low { background: var(--danger); }
+
+  /* ---------- work items ---------- */
+
+  .tier { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-top: 18px; overflow: hidden; }
+
+  .tier-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--sunken); }
+  .tier-head .chip { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 4px; }
+  .chip.p0 { background: var(--danger); color: #fff; }
+  .chip.p1 { background: var(--warn); color: #fff; }
+  .chip.p2 { background: var(--accent); color: #fff; }
+  .tier-head .t { font-size: 13.5px; font-weight: 600; }
+  .tier-head .e { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
+
+  .item { padding: 16px 20px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 6px 20px; }
+  .item:last-child { border-bottom: 0; }
+  .item .name { font-size: 14px; font-weight: 600; }
+  .item .desc { grid-column: 1 / 2; font-size: 13.5px; color: var(--ink-soft); }
+  .item .path { grid-column: 1 / 2; font-family: var(--mono); font-size: 11.5px; color: var(--ink-muted); word-break: break-all; }
+  .item .est { grid-row: 1 / 2; grid-column: 2 / 3; font-family: var(--mono); font-size: 11.5px; color: var(--ink-muted); white-space: nowrap; padding-top: 3px; }
+
+  .tag {
+    display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; padding: 1px 6px; border-radius: 3px; vertical-align: 2px; margin-left: 6px;
+  }
+  .tag.built { background: var(--accent-soft); color: var(--accent); }
+  .tag.broken { background: var(--danger-soft); color: var(--danger); }
+  .tag.gap { background: var(--warn-soft); color: var(--warn); }
+
+  /* ---------- tables ---------- */
+
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); font-size: 13.5px; }
+  th { text-align: left; background: var(--sunken); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-muted); padding: 9px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); }
+  tr:last-child td { border-bottom: 0; }
+  td b { color: var(--ink); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- callout ---------- */
+
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0; }
+  .callout.risk { border-left-color: var(--danger); background: var(--danger-soft); }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .callout .h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 5px; color: var(--accent); }
+  .callout.risk .h { color: var(--danger); }
+  .callout.warn .h { color: var(--warn); }
+  .callout p, .callout ul { margin: 0; font-size: 14px; color: var(--ink-soft); }
+  .callout ul { padding-left: 18px; }
+  .callout li { margin-bottom: 4px; }
+
+  /* ---------- list ---------- */
+
+  ul.clean { padding-left: 20px; margin: 10px 0 16px; }
+  ul.clean li { margin-bottom: 7px; color: var(--ink-soft); }
+  ul.clean li b { color: var(--ink); }
+
+  ol.steps { padding-left: 22px; margin: 12px 0 0; }
+  ol.steps li { margin-bottom: 10px; color: var(--ink-soft); }
+  ol.steps li b { color: var(--ink); }
+
+  .layer-diagram {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.9; color: var(--ink-soft);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; white-space: pre;
+  }
+  .layer-diagram b { color: var(--accent); font-weight: 600; }
+  .layer-diagram .x { color: var(--ink-muted); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .card h4 { margin-top: 0; }
+  .card p, .card li { font-size: 13.5px; }
+  .card ul { margin: 8px 0 0; padding-left: 18px; }
+  .card li { margin-bottom: 5px; color: var(--ink-soft); }
+
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-muted); }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .score-dial { width: 100%; max-width: 232px; height: 232px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .score-row { grid-template-columns: 1fr 60px; }
+    .score-row .why { grid-column: 1 / -1; }
+    .two-col { grid-template-columns: 1fr; }
+    .masthead nav { display: none; }
+  }
+
+  @media print {
+    body { background: #fff; font-size: 10.5pt; }
+    .masthead { position: static; }
+    section { page-break-inside: avoid; }
+    .score-dial { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brand">StoryBoard<span>engineering audit</span></div>
+    <nav>
+      <a href="#scores">Scores</a>
+      <a href="#scope">Content types</a>
+      <a href="#remaining">Remaining</a>
+      <a href="#uiux">UI/UX</a>
+      <a href="#storage">Storage</a>
+      <a href="#agentic">DeepSeek</a>
+      <a href="#missing">Gaps</a>
+      <a href="#next">Do next</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Audit revision 2 · 6 November 2026 · branch feat/docx-export · commit 74767b7</div>
+    <h1>A strong spine with no skin on half of it.</h1>
+    <p class="lede">
+      The database, the IPC boundary and the export converter are built to a standard
+      most side projects never reach. Four of the seven screens do not exist, there is
+      no backup of the only copy of the manuscript, and nothing anywhere saves your
+      typing when Windows closes the window. And despite the schema being generous,
+      the app is currently hard-wired to <b>one</b> Royal Road serial — not a novel, not a
+      research book.
+    </p>
+
+    <div class="hero-grid">
+      <div class="verdict">
+        <p><strong>What this is:</strong> a read-only audit of the code as it stands, not a plan review. Every number below was measured in the repo, not estimated.</p>
+        <p><strong>The good news:</strong> the missing screens need no new backend. <code>facts</code>, <code>relations</code>, <code>glossary</code> and <code>illustrations</code> already have repositories, services, zod schemas and 34 wired IPC channels. What is missing is the renderer.</p>
+        <p><strong>The bad news:</strong> the manuscript currently lives in exactly one Docker volume, and the command that was supposed to back it up (<code>npm run db:dump</code>) points at a file that does not exist.</p>
+        <p><strong>Second bad news:</strong> there is exactly one project, its id is a constant in the source, and the schema cannot cite a source that is not a chapter — so a research book is not "just a setting change".</p>
+      </div>
+      <div class="score-dial" style="--pct:66">
+        <div class="inner">
+          <div class="num">6.6</div>
+          <div class="den">out of 10, weighted</div>
+          <div class="cap">Engineering health</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat good"><div class="v">475</div><div class="k">tests passing<br>27 files, 177s</div></div>
+      <div class="stat good"><div class="v">34</div><div class="k">IPC channels<br>all zod-validated</div></div>
+      <div class="stat good"><div class="v">0</div><div class="k">TODO, FIXME,<br>or console.log</div></div>
+      <div class="stat"><div class="v">4 / 7</div><div class="k">screens built<br>(3 disabled)</div></div>
+      <div class="stat bad"><div class="v">1</div><div class="k">project, hardcoded<br>no <code>projects:*</code></div></div>
+      <div class="stat bad"><div class="v">0</div><div class="k">backup scripts<br><code>db:dump</code> broken</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 1. SCORES ============ -->
+  <section id="scores">
+    <h2><span class="n">01</span>Scorecard</h2>
+    <p class="sub">Weighted for a single-user local tool: correctness and not-losing-the-book count more than scalability and security theatre. Weights are relative, not percentages (they sum to 113 after the generality metric was added in this revision).</p>
+
+    <div class="scorecard">
+      <div class="score-row head">
+        <div>Metric</div><div>Score</div><div>Evidence and the one thing holding it back</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Data model &amp; integrity<small>weight 12%</small></div>
+        <div><div class="grade g-hi">9.5</div><div class="bar"><i style="width:95%"></i></div></div>
+        <div class="why">Enums instead of free text, unique indexes on <code>lower(canonical_name)</code>, partial indexes for unuploaded images, and a <b>NOT NULL + CHECK</b> on <code>source_chapter_id</code>/<code>source_quote</code> so no code path — including a future AI pass — can store an unsourced fact. Category-specific columns stay null rather than pretending one wide shape fits all relations. This is the best part of the project.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Type safety &amp; contracts<small>weight 10%</small></div>
+        <div><div class="grade g-hi">9.0</div><div class="bar"><i style="width:90%"></i></div></div>
+        <div class="why">Zero <code>any</code>, zero <code>@ts-ignore</code>, zero non-null assertions without a stated invariant. Every payload is validated <b>in and out</b> in main, so a repository returning a bad row fails loudly at the boundary instead of becoming a renderer bug. Deduction: <code>contract.ts</code> is 680 lines doing five jobs, and the layer naming rule in AGENTS.md is already broken (<code>content.service.ts</code> / <code>storyboard.service.ts</code> instead of <code>fact.service.ts</code>, <code>relation.service.ts</code>, ...).</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Testing<small>weight 12%</small></div>
+        <div><div class="grade g-hi">8.5</div><div class="bar"><i style="width:85%"></i></div></div>
+        <div class="why">475 passing tests: golden-file tests on the Royal Road HTML, tests that unzip the produced <code>.docx</code> and assert on the XML, integration tests against a throwaway DB for constraints. Honest, not decorative. Deductions: the suite takes <b>177s</b> (import cost dominates), tests sit outside both tsconfigs so <b>typecheck never sees them</b>, and the UI tests emit <code>act(...)</code> warnings — a signal the async assertions are not fully awaited.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Architecture &amp; layering<small>weight 12%</small></div>
+        <div><div class="grade g-hi">8.5</div><div class="bar"><i style="width:85%"></i></div></div>
+        <div class="why">The renderer genuinely cannot reach Node or Postgres: <code>sandbox: true</code>, <code>contextIsolation: true</code>, <code>nodeIntegration: false</code>, navigation blocked, new windows denied, and a CSP that forbids remote script. Repositories are shared rather than duplicated, so the release preview and the export cannot see different state. Deduction: no automated check that the renderer never imports from <code>electron/</code>, and handlers are constructed by hand in <code>createHandlers</code>, which will get unwieldy as the AI layer lands.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">UI / UX<small>weight 15%</small></div>
+        <div><div class="grade g-mid">6.0</div><div class="bar"><i class="mid" style="width:60%"></i></div></div>
+        <div class="why">Genuinely good instincts: one paper palette, serif for your words and sans for chrome, native <code>&lt;dialog&gt;</code> instead of a hand-rolled focus trap, <code>:focus-visible</code> everywhere, <code>prefers-reduced-motion</code> respected, and an editor that tells you <b>"unsaved"</b> instead of pretending. But: <b>no Ctrl+S</b>, no autosave, no close-window guard, no search, no dark mode, and 3 of 7 nav items are dead.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Feature completeness<small>weight 12%</small></div>
+        <div><div class="grade g-low">4.5</div><div class="bar"><i class="low" style="width:45%"></i></div></div>
+        <div class="why">The three tabs that are the entire point of the app — chapter facts, entity sheet, relations-with-who-knows — have no screens. Illustrations cannot be placed or uploaded from the UI at all. There is also <b>no markdown import</b>, so the first chapters you write in Obsidian cannot be brought in, and <b>no chapter reordering</b>, so an outline mistake means delete-and-recreate. The per-chapter <code>.html</code> export and the markdown+JSON archive are unbuilt. The tool cannot yet do the job it was built for.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Generality / content model<small>weight 8%</small></div>
+        <div><div class="grade g-low">3.0</div><div class="bar"><i class="low" style="width:30%"></i></div></div>
+        <div class="why">One project, addressed by a hardcoded UUID and seeded with the literal title "My Serial". No <code>projects:*</code> IPC channel exists, so a second work is impossible without editing source and reseeding. The export path is Royal Road-specific by design, and <code>facts.source_chapter_id</code> is <b>NOT NULL</b>, which means a research note can never cite a book, a paper or a URL. Good bones, narrow door. See section 03.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Data safety &amp; operability<small>weight 12%</small></div>
+        <div><div class="grade g-low">3.0</div><div class="bar"><i class="low" style="width:30%"></i></div></div>
+        <div class="why">Worst-scoring and most consequential. <code>package.json</code> declares <code>db:dump</code> and <code>config.ts</code> declares a backups directory, but <b>no <code>pg-dump.ts</code> exists</b> — the script fails. One Docker volume holds the only copy of hundreds of chapters. If Postgres is unavailable the app <code>app.quit()</code>s with a log line and never opens a window, so the failure looks like "the app is broken".</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Security<small>weight 5%</small></div>
+        <div><div class="grade g-hi">9.0</div><div class="bar"><i style="width:90%"></i></div></div>
+        <div class="why">Correct threat model for a local app: strict CSP, no remote content, preload sandbox-safe by construction, DB bound to <code>127.0.0.1</code>. Fixed default DB password is fine for localhost but should not survive into a shared machine — note it, do not panic.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Performance &amp; scale<small>weight 5%</small></div>
+        <div><div class="grade g-mid">7.0</div><div class="bar"><i class="mid" style="width:70%"></i></div></div>
+        <div class="why">Right call: the outline tree carries titles and word counts but not prose, and a volume export fetches chapter bodies in one query instead of N. But nothing is virtualised — a 400-chapter outline and a 400-entity list will both render every row, and the entity list refetches whole lists after each change.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">Agentic / AI readiness<small>weight 5%</small></div>
+        <div><div class="grade g-low">2.0</div><div class="bar"><i class="low" style="width:20%"></i></div></div>
+        <div class="why">No AI code at all, which AGENTS.md says is correct until real chapters exist. But <code>facts.status</code> already has <code>draft | approved | rejected</code> and the source-quote constraint already exists — the schema was designed for proposal-then-confirm. The gap is the provider boundary and the screens, not the data model.</div>
+      </div>
+
+      <div class="score-row">
+        <div class="metric">DX &amp; maintainability<small>weight 5%</small></div>
+        <div><div class="grade g-hi">8.0</div><div class="bar"><i style="width:80%"></i></div></div>
+        <div class="why">One command to run everything, forward-only migrations with a runner, lint with <code>--max-warnings 0</code>, typecheck that actually passes, doc comments on non-obvious branches explaining <i>why</i>. Deductions: no CI, no coverage gate, and the dev script is untested on a clean machine.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. MEASURED ============ -->
+  <section>
+    <h2><span class="n">02</span>Measured, not estimated</h2>
+    <p class="sub">Numbers taken from the working tree on the date above.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Value</th><th>Read</th></tr></thead>
+      <tbody>
+        <tr><td>Renderer source</td><td class="num">4,159 lines / 63 files</td><td>Lean. No component over 350 lines.</td></tr>
+        <tr><td>Main-process source</td><td class="num">5,382 lines</td><td>More code than the UI, which is why the UI is behind.</td></tr>
+        <tr><td>Test source</td><td class="num">6,736 lines</td><td>Tests exceed production code — unusual and good.</td></tr>
+        <tr><td>Largest file</td><td class="num">718 lines (test)</td><td>Under the 1,500 hard limit; <code>contract.ts</code> at 680 is the largest production file.</td></tr>
+        <tr><td>Migrations</td><td class="num">3</td><td>Forward-only, commented, constraints verified by integration tests.</td></tr>
+        <tr><td>Tables</td><td class="num">9 + 9 enums</td><td>Every relation category constrained in SQL.</td></tr>
+        <tr><td>IPC channels</td><td class="num">34</td><td>All reachable only through <code>handleIpc</code>.</td></tr>
+        <tr><td>Placeholders</td><td class="num">0</td><td>No TODO, FIXME, stub body or debug log.</td></tr>
+        <tr><td>Test runtime</td><td class="num">177s</td><td>69% is module import cost — <code>isolate: false</code> would cut ~24s.</td></tr>
+        <tr><td>CI</td><td class="num">none</td><td>No <code>.github/</code>. Everything is verified by hand.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout risk">
+      <div class="h">The one broken thing</div>
+      <p><code>npm run db:dump</code> runs <code>node dist-electron/scripts/pg-dump.js</code>. That file does not exist, and neither does its TypeScript source. The only command that was meant to back up the manuscript is a no-op that fails. This outranks every feature on this page.</p>
+    </div>
+  </section>
+
+  <!-- ============ 3. SCOPE ============ -->
+  <section id="scope">
+    <h2><span class="n">03</span>Is this only for light novels? Mostly, yes.</h2>
+
+    <p>
+      The honest answer is that the <b>data model</b> generalises better than the <b>product</b> does.
+      Tables called <code>chapters</code>, <code>entities</code> and <code>facts</code> would serve a
+      plain novel or a nonfiction book without complaint. What stops you is the layer above them:
+      one hardcoded project, a mandatory volume → arc → chapter ladder, and an export pipeline that
+      knows only Royal Road.
+    </p>
+
+    <table>
+      <thead><tr><th>What you want to write</th><th>Works today?</th><th>What stands in the way</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Light novel / web serial for Royal Road</b></td>
+          <td><span class="tag built">native</span></td>
+          <td>Only the missing screens. The model, the converter and the export steps were designed for exactly this.</td>
+        </tr>
+        <tr>
+          <td><b>A second light novel</b> (next series)</td>
+          <td><span class="tag broken">no</span></td>
+          <td><code>ACTIVE_PROJECT_ID</code> is a constant in <code>App.tsx</code>, the seed creates one project titled "My Serial", and no <code>projects:*</code> channel exists. A second work means editing source and reseeding.</td>
+        </tr>
+        <tr>
+          <td><b>Plain novel</b>, not on Royal Road, no illustrations</td>
+          <td><span class="tag gap">partly</span></td>
+          <td>You can write it. But <code>chapters.arc_id</code> is <b>NOT NULL</b>, so every book needs at least one invented arc; and the release preview gates on Royal Road rules (500-character minimum, ~10,000-word ceiling, "not finished") which would flag a perfectly normal manuscript as a blocker.</td>
+        </tr>
+        <tr>
+          <td><b>Novel with research material</b></td>
+          <td><span class="tag gap">partly</span></td>
+          <td>There is nowhere to put the research. <code>facts.source_chapter_id</code> is <b>NOT NULL</b>, so a note can only be sourced to your own prose, never to a book, article, interview or URL. Glossary <code>notes</code> and entity <code>backstory</code> are prose blobs, not a citation system.</td>
+        </tr>
+        <tr>
+          <td><b>Light novel + research material</b></td>
+          <td><span class="tag gap">partly</span></td>
+          <td>Same wall as above, plus a second problem: mixing research into story canon means the facts tab fills with material that is not canon. You would start distrusting the one view that is supposed to be trustworthy.</td>
+        </tr>
+        <tr>
+          <td><b>A research book / nonfiction</b></td>
+          <td><span class="tag broken">no</span></td>
+          <td>Missing: citations and a bibliography, a source table, footnote/endnote handling, section headings inside a chapter, figure and table numbering, a table of contents in the export, and entity types like <code>concept</code> or <code>topic</code>. <code>pov_entity_id</code>, arcs and POV breaks are meaningless here.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Why the fact invariant is the real blocker</h3>
+    <p>
+      AGENTS.md is explicit: every fact requires <code>source_chapter_id</code> and <code>source_quote</code>,
+      enforced by <code>NOT NULL</code> plus a <code>CHECK</code>, "not application validation alone". That rule is
+      the reason the facts tab can be trusted and the reason an AI pass cannot poison canon. It is also
+      precisely what makes external research impossible: research is sourced to <i>a book</i>, not to
+      chapter 14 of your own manuscript.
+    </p>
+
+    <div class="callout warn">
+      <div class="h">So do not relax it</div>
+      <p>Loosening <code>source_chapter_id</code> to nullable "so research fits" would delete the one guarantee that makes the app worth building. If research matters to you, add a <b>parallel</b> concept — <code>research_sources</code> and <code>research_notes</code> with their own citation columns — and keep <code>facts</code> exactly as strict as it is. Two tables with two rules beat one table with a loophole.</p>
+    </div>
+
+    <h3>Three ways to generalise — pick one deliberately</h3>
+
+    <table>
+      <thead><tr><th>Option</th><th>What changes</th><th>You get</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>A. Stay a light-novel tool</b></td>
+          <td>Nothing. Say so in the UI and in AGENTS.md.</td>
+          <td>One serial, done properly, sooner.</td>
+          <td>Zero. And it is a legitimate choice.</td>
+        </tr>
+        <tr>
+          <td><b>B. Add a proper project layer</b></td>
+          <td><code>works</code> row with <code>kind</code> and <code>export_profile</code>; <code>projects:*</code> IPC; a project picker; neutral copy. Facts unchanged.</td>
+          <td>Several novels, series or drafts side by side, each with its own cast and canon. This is the highest value-per-line change on this page.</td>
+          <td>~2–3 days. One migration, five channels, one picker screen.</td>
+        </tr>
+        <tr>
+          <td><b>C. Full research/nonfiction model</b></td>
+          <td><code>research_sources</code>, <code>research_notes</code>, note↔chapter links, entity types <code>concept</code>/<code>topic</code>, optional arcs, section headings, generic export profile.</td>
+          <td>A real research book, and research material that never contaminates canon.</td>
+          <td>~1–2 weeks, plus every export test needs a second profile.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <div class="h">Recommendation</div>
+      <p><b>Do B now, at the same time as the missing screens. Do C only if you are actually writing nonfiction this year.</b> B is a migration, five channels and a picker — a couple of days, and nothing already built gets thrown away, because every existing row already carries <code>project_id</code>. C is a second product wearing this one's clothes, and it would tempt you to weaken the fact invariant, which would cost you the only feature that cannot be re-bought.</p>
+    </div>
+  </section>
+
+  <!-- ============ 4. REMAINING ============ -->
+  <section id="remaining">
+    <h2><span class="n">04</span>What is actually remaining</h2>
+    <p class="sub">Grouped by consequence, not by how fun it is to build. Estimates assume you, solo, at your normal pace.</p>
+
+    <div class="tier">
+      <div class="tier-head"><span class="chip p0">P0</span><span class="t">Protect the manuscript</span><span class="e">~1 day</span></div>
+
+      <div class="item">
+        <div class="name">Build the pg_dump automation <span class="tag broken">broken</span></div>
+        <div class="est">3–4h</div>
+        <div class="desc">A real <code>scripts/pg-dump.ts</code> that shells out to <code>docker exec storyboard-db pg_dump</code>, writes a timestamped file to the config backups directory, keeps N days, and prints where the file landed. Schedule it with Windows Task Scheduler, not inside the app — the app is closed when you are not writing.</div>
+        <div class="path">scripts/pg-dump.ts · electron/config.ts · package.json</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Guard unsaved prose on window close</div>
+        <div class="est">3h</div>
+        <div class="desc">Today, closing the window with unsaved prose loses it silently — the title bar, the taskbar and the OS all say the work is saved. Hook <code>before-quit</code> in main, ask the renderer if the draft is dirty, and show a three-way dialog: Save &amp; quit / Discard / Cancel. This is the single highest-value UX fix in the app.</div>
+        <div class="path">electron/main.ts · src/features/chapters/use-chapter-draft.ts</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Report a missing database like a human</div>
+        <div class="est">1h</div>
+        <div class="desc">When <code>initDb</code> throws, the app currently quits with only a log line. Show a dialog naming the container, the port (5433) and the command to fix it. Same for a failed migration.</div>
+        <div class="path">electron/main.ts</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-head"><span class="chip p1">P1</span><span class="t">Finish the v1 screens — the backend is already done</span><span class="e">~9–11 days</span></div>
+
+      <div class="item">
+        <div class="name">Relations screen <span class="tag gap">no UI</span></div>
+        <div class="est">1.5 days</div>
+        <div class="desc">List grouped by category with sentiment only on social and rank only on membership; a create form that hides the fields the category does not own; a "who knows" multi-select backed by <code>knownByEntityIds</code>; a timeline column showing <code>valid_from → valid_to</code>. Everything it needs is already in <code>relations:*</code>.</div>
+        <div class="path">src/features/relations/ · bridge: <code>relations.*</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Facts, as the three tabs they were designed to be <span class="tag gap">no UI</span></div>
+        <div class="est">2 days</div>
+        <div class="desc">Tab 1 under the editor: facts with <code>scope_type='chapter'</code>, each showing its source quote. Tab 2: the entity sheet with abilities and relations. Tab 3: relations expanded with knowledge. One store, three filtered views — do not create a second table because the screens want different shapes.</div>
+        <div class="path">src/features/facts/ · <code>facts:*</code>, <code>entities:*</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Glossary screen <span class="tag gap">no UI</span></div>
+        <div class="est">4h</div>
+        <div class="desc">Small but load-bearing: it is what stops a spell-checker from "correcting" your invented nouns. Group by kind, edit notes, and later feed it to the English checker as a never-touch list.</div>
+        <div class="path">src/features/glossary/ · <code>glossary:*</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Illustrations screen + Catbox upload <span class="tag gap">no UI</span></div>
+        <div class="est">1.5 days</div>
+        <div class="desc">You cannot currently place, edit or upload an image from the app at all, yet the export is built around hotlinked images. Needs: pick a local file, choose the paragraph anchor, warn when the chapter has fewer paragraphs than the anchor, show an "uploaded / not uploaded" badge, and upload through <code>illustrations:uploadToHost</code>. Uploading is the only code path that leaves the machine — the dialog must say so once, plainly.</div>
+        <div class="path">src/features/illustrations/ · <code>illustrations:*</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Per-chapter .html export <span class="tag gap">pipeline step 3</span></div>
+        <div class="est">4h</div>
+        <div class="desc">The preview already builds the exact outgoing HTML; the only missing piece is a save dialog. It is the only path where a hotlinked illustration is definitely preserved, so any chapter with an image needs it.</div>
+        <div class="path">electron/services/release.service.ts · <code>release:*</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Adopt existing markdown files <span class="tag gap">no importer</span></div>
+        <div class="est">1 day</div>
+        <div class="desc">AGENTS.md promises the app "adopts those files with no conversion" — but there is no file-reading code anywhere outside the Catbox uploader. Every chapter you wrote in Obsidian has to be copy-pasted today. Needed: pick a folder of <code>.md</code> files, map filename → chapter title, insert in filename order, strip nothing (the prose stays plain), and show a dry-run list before writing.</div>
+        <div class="path">electron/services/ · new <code>chapters:import</code> channel</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Reorder chapters and move them between arcs</div>
+        <div class="est">4h</div>
+        <div class="desc">There is no reorder path at all: chapters append, and fixing an outline mistake means delete-and-recreate — which cascades into facts. Needs a move operation with ordinal renumbering inside one transaction, plus drag handles in the tree.</div>
+        <div class="path">electron/repositories/outline.repository.ts · outline-tree.tsx</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Draft snapshots and a trash for deleted chapters</div>
+        <div class="est">1 day</div>
+        <div class="desc">Deleting a chapter permanently destroys its prose and cascades away every fact sourced from it. A writing tool should never have a single irreversible click. Minimum: <code>deleted_at</code> soft delete with restore, and a snapshot of the previous <code>body_md</code> on each save (keep the last ~20).</div>
+        <div class="path">db/migrations/ · chapter.repository.ts</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Record that a chapter is published</div>
+        <div class="est">3h</div>
+        <div class="desc"><code>rr_url</code> and <code>published_at</code> exist in the table and travel all the way to the renderer — and no screen ever writes them. So "which chapters are live?" is unanswerable, and the tree can never show a published/draft distinction.</div>
+        <div class="path">chapter-editor.tsx · <code>chapters:saveOutline</code></div>
+      </div>
+
+      <div class="item">
+        <div class="name">Markdown + JSON archive <span class="tag gap">pipeline step 4</span></div>
+        <div class="est">1 day</div>
+        <div class="desc">The real backup: your prose as plain <code>.md</code> plus one JSON manifest of entities, facts, relations and glossary. If Postgres dies and the dumps are unreadable, this is what saves the book. It also makes the app's promise — "plain markdown on disk, no conversion" — literally true.</div>
+        <div class="path">electron/services/ · scripts/</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-head"><span class="chip p2">P2</span><span class="t">Generality, agentic layer, then polish</span><span class="e">~3 weeks</span></div>
+
+      <div class="item">
+        <div class="name">A real project layer — several works in one app</div>
+        <div class="est">2–3 days</div>
+        <div class="desc">Replace the hardcoded <code>ACTIVE_PROJECT_ID</code> with a persisted "last opened work", add <code>projects:*</code> CRUD, and give each row a <code>kind</code> (novel / light novel) and an export profile. This is option B in section 03 and the cheapest way to stop the app being a one-book tool.</div>
+        <div class="path">db/migrations/ · electron/ipc/ · src/features/projects/</div>
+      </div>
+
+      <div class="item">
+        <div class="name">DeepSeek provider boundary + English checker</div>
+        <div class="est">3–4 days</div>
+        <div class="desc">Details in section 07. The rule that keeps it safe: the model returns <b>proposals</b>, the author accepts or rejects, and nothing the model says ever becomes prose or a canonical fact without a click.</div>
+        <div class="path">electron/interfaces/ai-provider.interface.ts · electron/services/</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Character graph and open promises</div>
+        <div class="est">3 days</div>
+        <div class="desc">Both are derivable from data you already store — no new tables. Graph: nodes from <code>entities</code>, edges from <code>relations</code> filtered by the chapter you are on. Promises: <code>facts</code> where <code>kind='open_promise'</code> and nothing later resolves it.</div>
+        <div class="path">src/features/graph/ · fact.repository.ts</div>
+      </div>
+
+      <div class="item">
+        <div class="name">Ctrl+S, search, dark mode</div>
+        <div class="est">1–2 days</div>
+        <div class="desc">A writing app without Ctrl+S is a writing app that loses sentences. Search across entities, glossary and facts (plain <code>ILIKE</code> is enough at this scale; skip full-text search). Dark mode is a token swap because the palette is already centralised — but it is cosmetic, so it goes last.</div>
+        <div class="path">src/App.tsx · src/styles/index.css · src/components/</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. UI/UX ============ -->
+  <section id="uiux">
+    <h2><span class="n">05</span>UI / UX: what is good, what to change</h2>
+
+    <h3>Keep exactly as it is</h3>
+    <ul class="clean">
+      <li><b>Two typefaces with two jobs.</b> Serif for your words, sans for chrome. It reads like a book, not a dashboard, and it is the single reason the app feels authored rather than generated.</li>
+      <li><b>Native <code>&lt;dialog&gt;</code>.</b> Focus trapping and Escape come from the platform, so nothing can break on an edge case you did not think of.</li>
+      <li><b>Honest unsaved state.</b> "unsaved" next to the word count and "Saved only when you press Save" is a promise the app keeps. Do not replace it with a fake "Saved ✓" that means "we tried".</li>
+      <li><b>The draft lives above the section switch.</b> The comment explaining why is better than most production code. Do not move it back into the editor.</li>
+      <li><b>Disabled nav for unbuilt sections.</b> Showing the shape of the app instead of hiding the gaps is a good call.</li>
+    </ul>
+
+    <h3>Change, in order of how much it hurts</h3>
+    <table>
+      <thead><tr><th>Problem</th><th>Why it matters</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><b>Closing the window loses typing</b></td><td>The most expensive bug a writing tool can have. Nothing warns you.</td><td><code>before-quit</code> guard with Save / Discard / Cancel.</td></tr>
+        <tr><td><b>No Ctrl+S</b></td><td>Every writer presses it. Here it does nothing, so the habit silently fails.</td><td>Global keydown in the editor + a hint in the footer.</td></tr>
+        <tr><td><b>No autosave or crash draft</b></td><td>If Electron or Windows dies mid-chapter, the paragraph is gone.</td><td>Debounced write to a <code>.draft</code> file in the app data dir every ~20s; only <i>you</i> can promote it to the database. Never auto-commit prose.</td></tr>
+        <tr><td><b>No search</b></td><td>A 200-entity cast with aliases is unusable by scrolling, and the app's whole premise is "recall instead of reread".</td><td>One <code>ILIKE</code> query across entities, glossary and facts, opened with Ctrl+K.</td></tr>
+        <tr><td><b>3 of 7 nav items are dead</b></td><td>It makes the app feel abandoned exactly where it is most unfinished.</td><td>This is P1 above; nothing else closes the gap.</td></tr>
+        <tr><td><b>Dense three-pane shell at 1100px min</b></td><td>Editor, outline and preview compete for horizontal space on a laptop.</td><td>Collapsible side panes that remember where you left them.</td></tr>
+        <tr><td><b>No keyboard navigation of the outline</b></td><td>Volume → arc → chapter by mouse is slow when you switch chapters constantly.</td><td>Arrow keys + Enter on a roving tabindex tree.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="h">One design rule worth writing down</div>
+      <p>The release preview renders the outgoing HTML rather than re-deriving it. Keep that. The moment a second renderer exists, there are two truths and only one of them gets published.</p>
+    </div>
+  </section>
+
+  <!-- ============ 5. STORAGE ============ -->
+  <section id="storage">
+    <h2><span class="n">06</span>Is Docker + Postgres too much? No — but it is a tax you should name.</h2>
+
+    <p>
+      For <i>this</i> project Postgres is doing real work that an embedded database would make you rebuild in application code: named enums, <code>text[]</code> aliases, <code>jsonb</code> metadata, partial indexes for unuploaded images, <code>CHECK</code> constraints that encode story rules, and <code>pg_dump</code> as a backup primitive you already trust. The schema is the best-engineered part of the repo, and it is good <i>because</i> it is Postgres.
+    </p>
+
+    <table>
+      <thead><tr><th>Option</th><th>What you gain</th><th>What you lose</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Postgres in Docker</b><br><span class="num">current</span></td>
+          <td>Everything already built. Real constraints, real dumps, room for <code>pgvector</code> if the AI layer ever needs embeddings.</td>
+          <td>Must start Docker before writing. Packaging cannot ship it, so a fresh machine needs three setup steps. If the volume is deleted, the book is gone.</td>
+          <td>Keep for now.</td>
+        </tr>
+        <tr>
+          <td><b>Embedded Postgres</b><br>(PGlite / portable binaries)</td>
+          <td>Schema unchanged — same SQL, same enums. The app becomes double-click-and-write, which is what a single-user desktop tool should be.</td>
+          <td>Another runtime to vendor and update; <code>pg_dump</code> workflow changes; Drizzle's driver path differs.</td>
+          <td>Best long-term answer, wrong time. Revisit after v1.</td>
+        </tr>
+        <tr>
+          <td><b>SQLite</b></td>
+          <td>Zero install, one file, trivially backed up by copying it.</td>
+          <td>No <code>text[]</code>, no enums, no real <code>CHECK</code>-heavy modeling without rewriting migrations; loses the schema design you already invested in.</td>
+          <td>No. You would be trading your best asset for convenience.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <div class="h">The actual problem is not Docker</div>
+      <p>It is that Docker is doing the job of a storage <i>engine</i> while also being the only copy of the manuscript. Docker is not too much. <b>A single un-backed-up volume is too little.</b> Fix the dump, keep two rotating copies outside the repo, and Docker stops being a risk — at which point the only honest complaint left is "I have to start it before I write".</p>
+    </div>
+
+    <h4>Cheap operational wins</h4>
+    <ul class="clean">
+      <li><b>Nightly dump to a second drive</b> via Task Scheduler, retention 14 days, filename includes a timestamp. Verify one restore by hand once, or the backup is a rumour.</li>
+      <li><b>Use the markdown+JSON archive as the second, human-readable backup.</b> A <code>.sql</code> file is not a manuscript you can read in twenty years; <code>.md</code> is.</li>
+      <li><b>Copy <code>illustrations/</code> too.</b> A dump restores paths to image files that only exist on one disk.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 6. AGENTIC ============ -->
+  <section id="agentic">
+    <h2><span class="n">07</span>The DeepSeek layer</h2>
+
+    <p>
+      You are right that this is the remaining part. The schema was built for it and then left empty on purpose. The one rule that makes it safe is already enforceable in SQL: <b>every fact carries a source chapter and a verbatim quote</b>, and a model's output enters the table as <code>status='draft'</code>. The author accepts; the model never decides.
+    </p>
+
+    <h3>Three features, in the order they pay off</h3>
+
+    <table>
+      <thead><tr><th>#</th><th>Feature</th><th>Reads</th><th>Writes</th><th>Why this order</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="num">1</td>
+          <td><b>English checker</b><br><span class="sub">grammar, tense drift, POV slips, glossary violations</span></td>
+          <td>One chapter's <code>body_md</code>, the glossary terms</td>
+          <td>Nothing. Returns a list of suggestions with character spans; you accept one at a time.</td>
+          <td>Immediate value, lowest risk, and it validates your prompt and provider plumbing on text you can judge yourself.</td>
+        </tr>
+        <tr>
+          <td class="num">2</td>
+          <td><b>Fact proposals</b><br><span class="sub">"what changed in this chapter"</span></td>
+          <td>Chapter text + existing entities/aliases</td>
+          <td><code>facts</code> rows with <code>status='draft'</code>, <code>source_quote</code> required</td>
+          <td>This is the app's core promise. A rejected proposal is a useful signal; an auto-approved one poisons canon.</td>
+        </tr>
+        <tr>
+          <td class="num">3</td>
+          <td><b>Continuity checks</b><br><span class="sub">contradictions, dropped threads, unused abilities</span></td>
+          <td>Approved facts, relations, abilities, current chapter</td>
+          <td>Nothing canonical — surfaces warnings in the release preview</td>
+          <td>Needs #2 to exist first, because it reasons over approved facts rather than raw prose.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Where the code goes</h3>
+
+    <div class="layer-diagram">renderer  <b>src/features/assist/</b>       <span class="x">suggestion list · accept / reject · nothing else</span>
+   │  typed IPC (zod in and out, same as everything else)
+   ▼
+main      <b>ipc/handlers.ts</b>            <span class="x">ai:checkChapter · ai:proposeFacts</span>
+          <b>services/assist.service.ts</b>  <span class="x">prompt assembly · span mapping · validation</span>
+          <b>interfaces/ai-provider.interface.ts</b>  <span class="x">the only file that knows DeepSeek exists</span>
+          <b>interfaces/deepseek.interface.ts</b>     <span class="x">fetch, timeout, retry, JSON mode</span>
+   ▼
+DeepSeek  <span class="x">api.deepseek.com · key from OS keychain, never from a file in the repo</span></div>
+
+    <ul class="clean">
+      <li><b>The provider is an interface, not a client.</b> One file imports <code>fetch</code> and holds the URL and model id. Swapping to a local model later is a new implementation, not a refactor.</li>
+      <li><b>Prompts live next to the service that uses them</b>, versioned in git, with a comment saying what was verified against what. Not a system-prompt editor — AGENTS.md is right that a prompt editor is speculative until there are chapters.</li>
+      <li><b>Return JSON, validate with zod, reject on shape mismatch.</b> A model that returns prose instead of JSON must fail loudly at the boundary, not half-parse into a fact.</li>
+      <li><b>Character spans, not rewritten prose.</b> The checker highlights; you edit. The model never returns a paragraph for you to paste — that would make the AI an author.</li>
+      <li><b>Feed the glossary as a never-touch list.</b> <code>canonical_form</code> plus aliases go in the prompt as terms that must survive untouched. This is the reason the glossary table exists.</li>
+      <li><b>Never send a whole volume.</b> One chapter, or one chapter plus its approved facts. Context cost stays predictable and the model stops hallucinating across 200 chapters it half-remembers.</li>
+      <li><b>Log the request shape, the latency and the token counts, never the prose</b>, in the existing logger. You will want to know which call was slow; you will not want a log full of your manuscript.</li>
+    </ul>
+
+    <h3>The graph, without a graph library</h3>
+    <p>
+      Nodes are <code>entities</code>; edges are <code>relations</code>. Filter both to the chapter you are standing on and you have "who is alive in this scene and how they feel about each other" — which is the question you actually ask while writing. Sentiment maps to edge colour, <code>is_secret</code> to a dashed stroke, <code>relation_known_by</code> to which nodes can "see" the edge.
+    </p>
+    <p>
+      A force layout is a dependency. A deterministic radial layout around the POV character is not, and it is easier to read: POV in the centre, factions as wedges, places on the rim. Ship that first; add physics only if it actually helps you think.
+    </p>
+
+    <div class="callout warn">
+      <div class="h">Two guardrails worth writing into AGENTS.md before the first line of AI code</div>
+      <p>1. No accepted suggestion may write prose into <code>body_md</code>. Ever. The checker returns spans, the author types.<br>
+      2. No AI-created row may skip <code>source_chapter_id</code> and <code>source_quote</code>. The database already refuses it; the service must refuse it earlier so the error names the chapter, not the constraint.</p>
+    </div>
+
+    <h4>Cost sanity</h4>
+    <p class="sub">
+      A chapter is a few thousand tokens in and a few hundred out, so a full pass over the story is small change at DeepSeek's current rates. The thing to design for is not cost, it is <b>latency inside a flow that happens hundreds of times</b>: stream or return a progress state, never freeze the editor waiting for a response, and never block saving on the model.
+    </p>
+  </section>
+
+  <!-- ============ 8. MISSING FEATURES ============ -->
+  <section id="missing">
+    <h2><span class="n">08</span>Important features you did not ask about</h2>
+    <p class="sub">Found by reading the schema against the screens. Each one is a place where the app will quietly fail you rather than say "not supported".</p>
+
+    <table>
+      <thead><tr><th>Missing</th><th>What it costs you</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Copy the release HTML</b></td>
+          <td>The preview renders exactly what Royal Road needs, then gives you no button to copy it. Publishing a chapter is currently select-all inside a rendered preview, which picks up styling you cannot see. One clipboard call is the difference between "ready to paste" and "nearly ready".</td>
+          <td><span class="tag broken">P1 · 1h</span></td>
+        </tr>
+        <tr>
+          <td><b>Find &amp; replace in a chapter</b></td>
+          <td>Renaming a character across 40 chapters, or fixing a typo you repeat, means manual scrolling. The editor is a plain textarea, so this is an afternoon, not a feature.</td>
+          <td><span class="tag broken">P1 · 4h</span></td>
+        </tr>
+        <tr>
+          <td><b>Spellcheck that knows your glossary</b></td>
+          <td>Chromium's spellchecker is on by default but knows none of your invented names, so it underlines every one of them — and eventually you stop seeing red, which makes the red useless. The glossary table was built for this and is currently wired to nothing.</td>
+          <td><span class="tag gap">P2 · 4h</span></td>
+        </tr>
+        <tr>
+          <td><b>Volume covers</b></td>
+          <td>AGENTS.md says "volumes order chapters and hold covers", but the <code>volumes</code> table has no cover column, and there is no UI for one. Royal Road volume art is a real part of publishing a serial, so the spec is ahead of the schema here.</td>
+          <td><span class="tag gap">P2 · 3h</span></td>
+        </tr>
+        <tr>
+          <td><b>Single-instance lock</b></td>
+          <td>Nothing stops you opening the app twice against the same database. Two editors on one chapter is last-write-wins, silently — the one conflict mode this app cannot detect after the fact.</td>
+          <td><span class="tag broken">P1 · 30m</span></td>
+        </tr>
+        <tr>
+          <td><b>Duplicate and alias collisions</b></td>
+          <td><code>canonical_name</code> is unique per project, but <code>aliases</code> are free text. "Kaito" as an alias on one character and a canonical name on another creates two entities the facts tab will treat as different people. The service catches alias collisions on write; it never looks across existing entities.</td>
+          <td><span class="tag gap">P2 · 4h</span></td>
+        </tr>
+        <tr>
+          <td><b>POV field with no control</b></td>
+          <td><code>pov_entity_id</code> is modelled, indexed and emphasised in the plan as enabling "two cheap mechanical checks" — but no editor control sets it, so every chapter's POV is null and neither check can ever run.</td>
+          <td><span class="tag gap">P2 · 2h</span></td>
+        </tr>
+        <tr>
+          <td><b>Timeline view</b></td>
+          <td>Relations carry <code>valid_from</code> and <code>valid_to</code>, and abilities carry <code>first_use_chapter_id</code>. That is a whole timeline nobody can see: "who was allied with whom in chapter 30" is currently a SQL query, not a screen.</td>
+          <td><span class="tag gap">P2 · 1 day</span></td>
+        </tr>
+        <tr>
+          <td><b>Word-count goals and progress</b></td>
+          <td>Serial writing is a habit sport. Per-chapter and per-volume totals already exist in the data; a goal and a "words this week" line is cheap motivation and a reason to open the app on a bad day.</td>
+          <td><span class="tag gap">P3 · 4h</span></td>
+        </tr>
+        <tr>
+          <td><b>Restore from a dump, in the app</b></td>
+          <td>Writing the dump is half a backup; the other half is a tested restore. A "restore from file" action behind a typed confirmation is what turns a backup into a plan.</td>
+          <td><span class="tag gap">P2 · 3h</span></td>
+        </tr>
+        <tr>
+          <td><b>Undo across saves</b></td>
+          <td>Only in-session undo exists. One bad paste followed by Ctrl+S and the previous paragraph is gone — no revision history to recover from.</td>
+          <td><span class="tag broken">P1 · 1 day</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Deliberately missing — leave these alone</h3>
+    <p>
+      These are the features a well-meaning roadmap would add and this app should refuse: real-time collaboration, cloud sync and accounts, AI prose generation or rewriting, automatic publishing to Royal Road (there is no API), full-text or vector search over prose, a Kanban board of chapters, and EPUB/PDF export. Each one adds a second source of truth or a second author. Your AGENTS.md already says this; the audit agrees with it.
+    </p>
+  </section>
+
+  <!-- ============ 9. NEXT ============ -->
+  <section id="next">
+    <h2><span class="n">09</span>If you do only five things</h2>
+
+    <ol class="steps">
+      <li><b>Write <code>scripts/pg-dump.ts</code> and schedule it.</b> One day of work between you and losing the book. Everything else on this page is optional by comparison.</li>
+      <li><b>Guard unsaved prose on quit, and add Ctrl+S.</b> Two small changes that make the editor trustworthy. A writing tool that loses sentences gets abandoned, no matter how good its data model is.</li>
+      <li><b>Build the Relations screen.</b> It is the fastest path to the app earning its keep: the backend is finished, it is one screen, and "who knows what about whom" is the question a long serial actually asks.</li>
+      <li><b>Build the Facts tab under the editor.</b> Same reason: 100% of the IPC already exists. This is the tab that stops you rereading 200 pages.</li>
+      <li><b>Then, and only then, the DeepSeek English checker.</b> Do it as proposal-only, with the glossary as a never-touch list, and let it prove itself on chapters you have already written before it touches a chapter you are writing.</li>
+    </ol>
+
+    <div class="callout">
+      <div class="h">If the answer to "can I write something else" matters to you</div>
+      <p>Then fold <b>option B</b> (a real project layer, section 03) into step 3, not later. Every table already carries <code>project_id</code>; the hardcoded <code>ACTIVE_PROJECT_ID</code> is the only thing standing between the app and being able to hold a second work. Doing it while you are already touching the outline and the entity screens is a day of extra work — doing it afterwards means reopening all of them.</p>
+    </div>
+
+    <div class="callout">
+      <div class="h">One sentence you can hold on to</div>
+      <p>You have built the hard half to a standard that does not need revisiting, and left the half the author actually touches unfinished. The next two weeks are not about design — they are about screens that consume an API that already works.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>What this audit verified:</b> source tree, migrations, schema constraints, IPC contract and handlers, renderer structure, test run (475 passing / 27 files / 177s), lint scripts, backup configuration. <b>What it did not verify:</b> a packaged <code>electron-builder</code> build, a live Catbox upload, and a restore from a dump that has never been produced.</p>
+    <p>Revision 2, 6 November 2026, against commit <code>74767b7</code> on <code>feat/docx-export</code>. Added: content-type fit, project-layer options, the generality metric, and section 08. Overall re-scored from 6.9 to 6.6 after those findings. Read-only — no files were changed by this audit.</p>
+  </footer>
+
+</div>
+</body>
+</html>
