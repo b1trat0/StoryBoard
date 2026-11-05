@@ -1,4 +1,4 @@
-import { FloppyDisk } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, FloppyDisk, MagnifyingGlass } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { EmptyState, Skeleton } from '../../components/ui/empty-state';
@@ -8,7 +8,8 @@ import { Textarea } from '../../components/ui/textarea';
 import { FactsPanel } from '../facts/facts-panel';
 import { IllustrationsPanel } from '../illustrations/illustrations-panel';
 import { countParagraphs } from '../../lib/chapter-text';
-import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';import { cn } from '../../lib/utils';
+import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';
+import { cn } from '../../lib/utils';
 import {
   CHAPTER_TYPES,
   STATUS_LABELS,
@@ -47,6 +48,10 @@ export interface ChapterEditorProps {
   projectId: string | null;
   /** Chapters available as a source for a fact about this chapter. */
   chapters: { id: string; title: string }[];
+  /** Characters available as the point of view. */
+  povOptions: { id: string; label: string }[];
+  /** Moves this chapter one position within its arc. */
+  onMoveChapter: (direction: 'up' | 'down') => Promise<void>;
 }
 
 /**
@@ -80,7 +85,12 @@ export function ChapterEditor({
   onDiscardDraft,
   projectId,
   chapters,
+  povOptions,
+  onMoveChapter,
 }: ChapterEditorProps) {
+  const [findText, setFindText] = useState('');
+  const [replaceText, setReplaceText] = useState('');
+  const [isFindOpen, setIsFindOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -133,6 +143,24 @@ export function ChapterEditor({
             <span className="text-[11px] uppercase tracking-wide text-ink-muted">
               {typeDescription(draft.type)}
             </span>
+            <div className="ml-auto flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Move chapter earlier"
+                onClick={() => void onMoveChapter('up')}
+              >
+                <ArrowUp size={14} weight="bold" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Move chapter later"
+                onClick={() => void onMoveChapter('down')}
+              >
+                <ArrowDown size={14} weight="bold" aria-hidden="true" />
+              </Button>
+            </div>
           </div>
 
           <h1 className="mt-2 font-serif text-2xl font-semibold tracking-tight text-ink">
@@ -256,6 +284,72 @@ export function ChapterEditor({
             </div>
           </section>
 
+          <section className="mt-8 border-t border-line pt-6">
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              Details
+            </h2>
+            <div className="mt-2 grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="chapter-pov">Point of view</Label>
+                <select
+                  id="chapter-pov"
+                  value={draft.povEntityId ?? ''}
+                  onChange={(event) =>
+                    void saveOutline({
+                      povEntityId: event.target.value === '' ? null : event.target.value,
+                    })
+                  }
+                  className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[12.5px] text-ink"
+                >
+                  <option value="">Not set</option>
+                  {povOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="chapter-rr-url" hint="optional">
+                  Published URL
+                </Label>
+                <Input
+                  key={`${draft.id}:${draft.rrUrl ?? ''}`}
+                  id="chapter-rr-url"
+                  defaultValue={draft.rrUrl ?? ''}
+                  placeholder="https://www.royalroad.com/fiction/…"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (draft.rrUrl ?? '')) {
+                      void saveOutline({ rrUrl: value === '' ? null : value });
+                    }
+                  }}
+                  className="h-8 text-[12.5px]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="chapter-published-at" hint="optional">
+                  Published on
+                </Label>
+                <input
+                  id="chapter-published-at"
+                  type="date"
+                  value={draft.publishedAt?.slice(0, 10) ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    void saveOutline({
+                      publishedAt:
+                        value === '' ? null : new Date(`${value}T00:00:00`).toISOString(),
+                    });
+                  }}
+                  className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[12.5px] text-ink"
+                />
+              </div>
+            </div>
+          </section>
+
           {recoveredDraft != null && (
             <div
               role="status"
@@ -280,10 +374,64 @@ export function ChapterEditor({
 
           <section className="mt-8 border-t border-line pt-6">
             <div className="flex items-baseline justify-between gap-4">
-              <h2 className="font-serif text-[15px] font-semibold text-ink">Prose</h2>              <span className="font-mono text-xs tabular-nums text-ink-muted">
+              <h2 className="font-serif text-[15px] font-semibold text-ink">Prose</h2>
+              <span className="font-mono text-xs tabular-nums text-ink-muted">
                 {countWords(draft.bodyMd).toLocaleString()} words
                 {isDirty && <span className="ml-1.5 text-accent">unsaved</span>}
               </span>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFindOpen((current) => !current)}
+                aria-expanded={isFindOpen}
+              >
+                <MagnifyingGlass size={14} aria-hidden="true" />
+                Find &amp; replace
+              </Button>
+              {isFindOpen && (
+                <div className="flex flex-1 flex-wrap items-center gap-2">
+                  <Input
+                    aria-label="Find text"
+                    value={findText}
+                    onChange={(event) => setFindText(event.target.value)}
+                    placeholder="Find"
+                    className="h-8 w-40 text-[12.5px]"
+                  />
+                  <Input
+                    aria-label="Replace with"
+                    value={replaceText}
+                    onChange={(event) => setReplaceText(event.target.value)}
+                    placeholder="Replace with"
+                    className="h-8 w-40 text-[12.5px]"
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={findText.length === 0}
+                    onClick={() => {
+                      if (findText.length === 0) {
+                        return;
+                      }
+                      // A literal replacement, not a regular expression: the author is
+                      // fixing a name or a typo, and a stray bracket becoming a pattern
+                      // would replace things they never selected.
+                      onFieldChange({
+                        bodyMd: draft.bodyMd.split(findText).join(replaceText),
+                      });
+                    }}
+                  >
+                    Replace all
+                  </Button>
+                  <span className="text-[11.5px] text-ink-muted">
+                    {findText.length === 0
+                      ? 'Type what to find'
+                      : `${draft.bodyMd.split(findText).length - 1} matches`}
+                  </span>
+                </div>
+              )}
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
               Plain markdown, paragraphs separated by a blank line. Nothing is written

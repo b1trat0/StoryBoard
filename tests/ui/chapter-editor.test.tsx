@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChapterEditor } from '../../src/features/chapters/chapter-editor.js';
 import { useChapterDraft } from '../../src/features/chapters/use-chapter-draft.js';
@@ -154,6 +154,13 @@ function EditorHarness({
       updateDraft={draft.updateDraft}
       saveOutlineField={draft.saveOutlineField}
       commitProse={draft.commitProse}
+      recoveredDraft={null}
+      onRestoreDraft={async () => undefined}
+      onDiscardDraft={async () => undefined}
+      projectId="00000000-0000-4000-8000-000000000001"
+      chapters={[]}
+      povOptions={[{ id: '99999999-9999-4999-8999-999999999999', label: 'Kael' }]}
+      onMoveChapter={async () => undefined}
     />
   );
 }
@@ -444,5 +451,64 @@ describe('no chapter selected', () => {
 
     expect(screen.queryByText(/pick a chapter/i)).toBeNull();
     expect(screen.queryByLabelText('Chapter prose')).toBeNull();
+  });
+});
+
+describe('find and replace', () => {
+  it('replaces every literal occurrence in the buffer', () => {
+    renderEditor({ chapter: chapterFixture({ bodyMd: 'Kael met Kael.' }), isLoading: false });
+
+    fireEvent.click(screen.getByRole('button', { name: /find & replace/i }));
+    fireEvent.change(screen.getByLabelText('Find text'), { target: { value: 'Kael' } });
+    fireEvent.change(screen.getByLabelText('Replace with'), {
+      target: { value: 'Kaelith' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /replace all/i }));
+
+    expect((screen.getByLabelText('Chapter prose') as HTMLTextAreaElement).value).toBe(
+      'Kaelith met Kaelith.',
+    );
+  });
+
+  it('counts matches so a replace is not blind', () => {
+    renderEditor({ chapter: chapterFixture({ bodyMd: 'Kael met Kael.' }), isLoading: false });
+
+    fireEvent.click(screen.getByRole('button', { name: /find & replace/i }));
+    fireEvent.change(screen.getByLabelText('Find text'), { target: { value: 'Kael' } });
+
+    expect(screen.getByText('2 matches')).toBeTruthy();
+  });
+});
+
+describe('publication tracking', () => {
+  it('saves the published URL when the field loses focus', () => {
+    const stub = installBridge();
+    renderEditor({ chapter: chapterFixture(), isLoading: false });
+
+    const url = screen.getByLabelText(/published url/i);
+    setValue(url, 'https://www.royalroad.com/fiction/1/chapter/2');
+    blur(url);
+
+    expect(stub.saveOutline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rrUrl: 'https://www.royalroad.com/fiction/1/chapter/2',
+      }),
+    );
+  });
+
+  it('saves the point of view as null when it is cleared', () => {
+    const stub = installBridge();
+    renderEditor({
+      chapter: chapterFixture({ povEntityId: '99999999-9999-4999-8999-999999999999' }),
+      isLoading: false,
+    });
+
+    fireEvent.change(screen.getByLabelText('Point of view'), {
+      target: { value: '' },
+    });
+
+    expect(stub.saveOutline).toHaveBeenCalledWith(
+      expect.objectContaining({ povEntityId: null }),
+    );
   });
 });

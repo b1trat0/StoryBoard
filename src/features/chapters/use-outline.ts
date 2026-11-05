@@ -56,6 +56,8 @@ export interface OutlineState {
    * "my title did not save".
    */
   saveChapterOutline: (id: string, patch: Partial<Chapter>) => Promise<void>;
+  /** Moves a chapter one position within its arc and reloads the tree. */
+  moveChapter: (id: string, direction: 'up' | 'down') => Promise<void>;
 }
 
 const EMPTY_TREE: OutlineTree = { volumes: [] };
@@ -153,8 +155,7 @@ export function useOutline(projectId: string | null): OutlineState {
     [reload],
   );
 
-  const createVolume: OutlineState['createVolume'] = useCallback(
-    (input) => {
+  const createVolume: OutlineState['createVolume'] = useCallback(    (input) => {
       if (projectId === null) {
         throw new Error('Open a work before creating a volume.');
       }
@@ -179,6 +180,15 @@ export function useOutline(projectId: string | null): OutlineState {
     async (id, patch) => {
       await runMutation(`outline:${id}`, (bridge) =>
         bridge.chapters.saveOutline({ id, ...toOutlinePatch(patch) }),
+      );
+    },
+    [runMutation],
+  );
+
+  const moveChapter: OutlineState['moveChapter'] = useCallback(
+    async (id, direction) => {
+      await runMutation(`chapter-move:${id}`, (bridge) =>
+        bridge.chapters.move({ id, direction }),
       );
     },
     [runMutation],
@@ -218,6 +228,7 @@ export function useOutline(projectId: string | null): OutlineState {
     createArc,
     createChapter,
     saveChapterOutline,
+    moveChapter,
     removeNode,
   };
 }
@@ -248,5 +259,7 @@ function toOutlinePatch(
   if (patch.outlineConflict !== undefined) wire.outlineConflict = patch.outlineConflict;
   if (patch.outlineOutcome !== undefined) wire.outlineOutcome = patch.outlineOutcome;
   if (patch.outlineBeat !== undefined) wire.outlineBeat = patch.outlineBeat;
+  if (patch.rrUrl !== undefined) wire.rrUrl = patch.rrUrl;
+  if (patch.publishedAt !== undefined) wire.publishedAt = patch.publishedAt;
   return wire;
 }

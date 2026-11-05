@@ -94,6 +94,7 @@ import {
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
+  moveChapterRequestSchema,
   saveGlossaryTermRequestSchema,
   saveIllustrationRequestSchema,
   updateArcRequestSchema,
@@ -440,6 +441,16 @@ export function createHandlers(
       saveChapterOutlineRequestSchema,
       chapterSchema,
       (input) => chapterService.saveOutline(input),
+    ),
+
+    [CHANNELS.chaptersMove]: handleIpc(
+      logger,
+      CHANNELS.chaptersMove,
+      moveChapterRequestSchema,
+      null,
+      async (input) => {
+        await chapterService.move(input);
+      },
     ),
 
     [CHANNELS.glossaryList]: handleIpc(

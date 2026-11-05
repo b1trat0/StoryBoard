@@ -748,6 +748,15 @@ export const saveChapterOutlineRequestSchema = z.object({
   outlineConflict: z.string().optional(),
   outlineOutcome: z.string().optional(),
   outlineBeat: z.string().optional(),
+  /** Publication tracking. Null clears the value. */
+  rrUrl: z.string().nullable().optional(),
+  publishedAt: isoTimestampSchema.nullable().optional(),
+});
+
+/** Moving a chapter one position within its arc. */
+export const moveChapterRequestSchema = z.object({
+  id: uuidSchema,
+  direction: z.enum(['up', 'down']),
 });
 
 export type ListEntitiesRequest = z.infer<typeof listEntitiesRequestSchema>;
@@ -921,6 +930,8 @@ export interface StoryBoardApi {
     remove(input: { id: string }): Promise<void>;
     saveProse(input: SaveChapterProseRequest): Promise<Chapter>;
     saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
+    /** Moves a chapter one position within its arc. */
+    move(input: z.infer<typeof moveChapterRequestSchema>): Promise<void>;
   };
   glossary: {
     list(input: { projectId: string }): Promise<GlossaryTerm[]>;

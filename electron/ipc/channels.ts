@@ -38,6 +38,7 @@ export const CHANNELS = {
   chaptersRemove: 'chapters:remove',
   chaptersSaveProse: 'chapters:saveProse',
   chaptersSaveOutline: 'chapters:saveOutline',
+  chaptersMove: 'chapters:move',
   glossaryList: 'glossary:list',
   glossarySave: 'glossary:save',
   illustrationsListByChapter: 'illustrations:listByChapter',

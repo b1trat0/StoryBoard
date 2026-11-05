@@ -31,6 +31,7 @@ export interface ChapterService {
   remove(input: { id: string }): Promise<void>;
   saveProse(input: SaveChapterProseRequest): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
+  move(input: { id: string; direction: 'up' | 'down' }): Promise<void>;
 }
 
 export function createChapterService(repo: ChapterRepository): ChapterService {
@@ -81,6 +82,8 @@ export function createChapterService(repo: ChapterRepository): ChapterService {
       }
       return repo.saveOutline(input);
     },
+
+    move: (input) => repo.move(input),
   };
 }
 

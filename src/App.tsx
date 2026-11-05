@@ -411,6 +411,15 @@ export function App() {
                 onDiscardDraft={crashDraft.discard}
                 projectId={activeProjectId}
                 chapters={chapterOptions}
+                povOptions={allEntities
+                  .filter((entity) => entity.type === 'character')
+                  .map((entity) => ({ id: entity.id, label: entity.canonicalName }))}
+                onMoveChapter={(direction) => {
+                  const chapterId = draft.draft?.id;
+                  return chapterId === undefined
+                    ? Promise.resolve()
+                    : outline.moveChapter(chapterId, direction);
+                }}
               />
             )}
 

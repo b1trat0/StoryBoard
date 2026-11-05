@@ -80,6 +80,8 @@ export interface StoryBoardBridge {
       authorNotePost: string;
     }): Promise<Chapter>;
     saveOutline(input: SaveChapterOutlineInput): Promise<Chapter>;
+    /** Moves a chapter one position within its arc. */
+    move(input: { id: string; direction: 'up' | 'down' }): Promise<void>;
   };
   glossary: {
     list(input: { projectId: string }): Promise<GlossaryTerm[]>;
@@ -373,6 +375,9 @@ export interface SaveChapterOutlineInput {
   outlineConflict?: string;
   outlineOutcome?: string;
   outlineBeat?: string;
+  /** Publication tracking; null clears it. */
+  rrUrl?: string | null;
+  publishedAt?: string | null;
 }
 
 export interface GlossaryTerm {

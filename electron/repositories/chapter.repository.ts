@@ -1,4 +1,4 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { chapters } from '../db/schema.js';
 import { toChapterDto } from '../db/mappers.js';
@@ -33,6 +33,14 @@ export interface ChapterRepository {
   remove(id: string): Promise<void>;
   saveProse(input: SaveChapterProseRequest, wordCount: number): Promise<Chapter>;
   saveOutline(input: SaveChapterOutlineRequest): Promise<Chapter>;
+  /**
+   * Swaps a chapter with its neighbour in the same arc.
+   *
+   * A no-op at the edge of an arc: the buttons that call this have no way to know how
+   * many siblings exist without another query, and refusing would surface as an error
+   * for an action the author did not really take.
+   */
+  move(input: { id: string; direction: 'up' | 'down' }): Promise<void>;
 }
 
 export function createChapterRepository(): ChapterRepository {
@@ -163,6 +171,12 @@ export function createChapterRepository(): ChapterRepository {
       if (input.outlineConflict !== undefined) patch.outlineConflict = input.outlineConflict;
       if (input.outlineOutcome !== undefined) patch.outlineOutcome = input.outlineOutcome;
       if (input.outlineBeat !== undefined) patch.outlineBeat = input.outlineBeat;
+      if (input.rrUrl !== undefined) {
+        patch.rrUrl = input.rrUrl === null || input.rrUrl.trim() === '' ? null : input.rrUrl.trim();
+      }
+      if (input.publishedAt !== undefined) {
+        patch.publishedAt = input.publishedAt === null ? null : new Date(input.publishedAt);
+      }
 
       const rows = await db
         .update(chapters)
@@ -175,6 +189,51 @@ export function createChapterRepository(): ChapterRepository {
         throw new ChapterNotFoundError(input.id);
       }
       return toChapterDto(row);
+    },
+
+    async move(input) {
+      const db = getDb();
+      await db.transaction(async (tx) => {
+        const rows = await tx
+          .select()
+          .from(chapters)
+          .where(eq(chapters.id, input.id))
+          .limit(1);
+        const chapter = rows[0];
+        if (chapter === undefined) {
+          throw new ChapterNotFoundError(input.id);
+        }
+
+        const targetOrdinal = chapter.ordinal + (input.direction === 'up' ? -1 : 1);
+        const neighbourRows = await tx
+          .select()
+          .from(chapters)
+          .where(
+            and(eq(chapters.arcId, chapter.arcId), eq(chapters.ordinal, targetOrdinal)),
+          )
+          .limit(1);
+        const neighbour = neighbourRows[0];
+        if (neighbour === undefined) {
+          return;
+        }
+
+        // The unique index on (arc_id, ordinal) means the two rows cannot simply swap
+        // in two statements. A temporary ordinal far above any real position parks the
+        // moving row out of the way for the length of the transaction.
+        const parkingOrdinal = chapter.ordinal + 1_000_000;
+        await tx
+          .update(chapters)
+          .set({ ordinal: parkingOrdinal })
+          .where(eq(chapters.id, chapter.id));
+        await tx
+          .update(chapters)
+          .set({ ordinal: chapter.ordinal })
+          .where(eq(chapters.id, neighbour.id));
+        await tx
+          .update(chapters)
+          .set({ ordinal: targetOrdinal })
+          .where(eq(chapters.id, chapter.id));
+      });
     },
   };
 }
