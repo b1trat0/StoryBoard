@@ -120,6 +120,11 @@ export interface StoryBoardBridge {
      * only form of publishing available: Royal Road has no API.
      */
     exportVolumeDocx(input: { volumeId: string }): Promise<VolumeDocxExportResult>;
+    /** Writes one chapter as a standalone `.html` file. */
+    exportChapterHtml(input: { chapterId: string }): Promise<ChapterHtmlExportResult>;
+  };
+  archive: {
+    exportProject(input: { projectId: string }): Promise<ArchiveExportResult>;
   };
   /**
    * Manual backup of the manuscript database.
@@ -477,6 +482,32 @@ export type VolumeDocxExportResult =
       droppedImageCount: number;
       droppedNoteCount: number;
       warnings: ReleaseWarning[];
+    };
+
+/** What one chapter's `.html` export produced. */
+export type ChapterHtmlExportResult =
+  | { status: 'cancelled' }
+  | {
+      status: 'written';
+      filePath: string;
+      chapterTitle: string;
+      bytes: number;
+      warnings: ReleaseWarning[];
+    };
+
+/** What the whole-work JSON archive produced. */
+export type ArchiveExportResult =
+  | { status: 'cancelled' }
+  | {
+      status: 'written';
+      filePath: string;
+      projectTitle: string;
+      chapterCount: number;
+      entityCount: number;
+      factCount: number;
+      relationCount: number;
+      glossaryCount: number;
+      bytes: number;
     };
 
 /**

@@ -47,6 +47,8 @@ export const CHANNELS = {
   illustrationsPickImage: 'illustrations:pickImage',
   releasePreviewChapter: 'release:previewChapter',
   releaseExportVolumeDocx: 'release:exportVolumeDocx',
+  releaseExportChapterHtml: 'release:exportChapterHtml',
+  archiveExportProject: 'archive:exportProject',
   backupStatus: 'backup:status',
   backupRun: 'backup:run',
   editorSetDirty: 'editor:setDirty',

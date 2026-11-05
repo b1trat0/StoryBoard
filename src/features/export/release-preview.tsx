@@ -1,6 +1,11 @@
 import { CheckCircle, Warning, WarningCircle } from '@phosphor-icons/react';
 import type { ChapterRelease, ReleaseWarning } from '../../lib/bridge';
 import { EmptyState } from '../../components/ui/empty-state';
+import { Button } from '../../components/ui/button';
+import { copyText } from '../../lib/clipboard';
+import { getBridge } from '../../lib/bridge';
+import { toast } from 'sonner';
+import { releaseBodyHtml } from './release-clipboard';
 import { useReleasePreview } from './use-release-preview';
 
 /**
@@ -83,6 +88,54 @@ export function ReleasePreview({ chapterId, isOutlineLoading }: ReleasePreviewPr
             {release.wordCount.toLocaleString('en-US')} words
             {release.isExcluded ? ' · not part of this release' : ''}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void copyText(releaseBodyHtml(release)).then((copied) => {
+                  if (copied) {
+                    toast.success('Chapter HTML copied', {
+                      description: 'Paste it into Royal Road’s source view.',
+                    });
+                    return;
+                  }
+                  toast.error('Could not copy', {
+                    description: 'Select the preview and copy it manually.',
+                  });
+                });
+              }}
+            >
+              Copy chapter HTML
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const bridge = getBridge();
+                if (bridge === null) {
+                  return;
+                }
+                void bridge.release
+                  .exportChapterHtml({ chapterId: release.chapterId })
+                  .then((result) => {
+                    if (result.status === 'cancelled') {
+                      return;
+                    }
+                    toast.success('HTML written', {
+                      description: `${result.chapterTitle} → ${result.filePath}`,
+                    });
+                  })
+                  .catch((err: unknown) => {
+                    toast.error('Could not write the HTML', {
+                      description: err instanceof Error ? err.message : undefined,
+                    });
+                  });
+              }}
+            >
+              Export .html
+            </Button>
+          </div>
         </header>
 
         <WarningList warnings={release.warnings} />

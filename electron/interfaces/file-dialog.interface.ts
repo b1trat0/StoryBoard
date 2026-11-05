@@ -26,11 +26,17 @@ export interface SaveFilePicker {
   /**
    * Asks the author where to write a file, then writes it.
    *
-   * @param input - The suggested filename and the bytes to write.
+   * @param input - The suggested filename, the bytes, and the file kind that decides
+   *   the dialog filter. Defaults to a Word document so the original export path is
+   *   unchanged.
    * @returns Where it was written, or `cancelled` if the author closed the dialog.
    * @throws When the write fails. The message must be safe to show the author.
    */
-  save(input: { suggestedName: string; bytes: Buffer }): Promise<SaveFileOutcome>;
+  save(input: {
+    suggestedName: string;
+    bytes: Buffer;
+    kind?: 'docx' | 'html' | 'json';
+  }): Promise<SaveFileOutcome>;
 }
 
 export class ExportWriteError extends Error {
@@ -42,6 +48,14 @@ export class ExportWriteError extends Error {
 
 /** Word's own filter, so the dialog does not offer the author a wrong file type. */
 const DOCX_FILTER: FileFilter = { name: 'Word document', extensions: ['docx'] };
+const HTML_FILTER: FileFilter = { name: 'HTML file', extensions: ['html'] };
+const JSON_FILTER: FileFilter = { name: 'JSON archive', extensions: ['json'] };
+
+const FILTERS: Record<'docx' | 'html' | 'json', FileFilter> = {
+  docx: DOCX_FILTER,
+  html: HTML_FILTER,
+  json: JSON_FILTER,
+};
 
 const IMAGE_FILTERS: FileFilter[] = [
   { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
@@ -109,15 +123,16 @@ export function createImagePicker(getWindow: () => BrowserWindow | null): ImageP
  */
 export function createSaveFilePicker(getWindow: () => BrowserWindow | null): SaveFilePicker {
   return {
-    async save({ suggestedName, bytes }) {
+    async save({ suggestedName, bytes, kind = 'docx' }) {
       const parent = getWindow();
+      const filters = [FILTERS[kind]];
 
       const result =
         parent === null
-          ? await dialog.showSaveDialog({ defaultPath: suggestedName, filters: [DOCX_FILTER] })
+          ? await dialog.showSaveDialog({ defaultPath: suggestedName, filters })
           : await dialog.showSaveDialog(parent, {
               defaultPath: suggestedName,
-              filters: [DOCX_FILTER],
+              filters,
             });
 
       if (result.canceled || result.filePath === undefined) {

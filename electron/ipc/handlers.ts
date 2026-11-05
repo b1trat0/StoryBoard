@@ -24,6 +24,7 @@ import { createReleaseService } from '../services/release.service.js';
 import { createOutlineService } from '../services/outline.service.js';
 import { createBackupService } from '../services/backup.service.js';
 import { createDraftRecoveryService } from '../services/draft-recovery.service.js';
+import { createArchiveService } from '../services/archive.service.js';
 import { createProjectService } from '../services/project.service.js';
 import { createSettingsService } from '../services/settings.service.js';
 import { createDockerBackupSource } from '../lib/docker-backup.js';
@@ -48,6 +49,10 @@ import {
   chapterSchema,
   deleteByIdRequestSchema,
   exportVolumeDocxRequestSchema,
+  exportChapterHtmlRequestSchema,
+  chapterHtmlExportResultSchema,
+  exportArchiveRequestSchema,
+  archiveExportResultSchema,
   deleteEntityRequestSchema,
   deleteFactRequestSchema,
   deleteRelationRequestSchema,
@@ -145,9 +150,17 @@ export function createHandlers(
   settingsPath: string = path.join(process.cwd(), 'settings.json'),
   pickImage: ImagePicker = { pick: async () => ({ status: 'cancelled' }) },
 ) {
-  const entityService = createEntityService(createEntityRepository());
-  const relationService = createRelationService(createRelationRepository());
-  const factService = createFactService(createFactRepository());
+  // Repositories are created once and shared: the archive needs the same rows the
+  // editing screens see, and a second instance would be a second view of the database.
+  const entityRepository = createEntityRepository();
+  const factRepository = createFactRepository();
+  const relationRepository = createRelationRepository();
+  const glossaryRepository = createGlossaryRepository();
+  const projectRepository = createProjectRepository();
+
+  const entityService = createEntityService(entityRepository);
+  const relationService = createRelationService(relationRepository);
+  const factService = createFactService(factRepository);
 
   // The chapter repository is shared: an illustration slot is validated against
   // its chapter's real paragraph count, so the two must read the same data.
@@ -159,7 +172,7 @@ export function createHandlers(
     chapterRepository,
     createCatboxHost(),
   );
-  const glossaryService = createGlossaryService(createGlossaryRepository());
+  const glossaryService = createGlossaryService(glossaryRepository);
   const outlineRepository = createOutlineRepository();
   const outlineService = createOutlineService(outlineRepository);
   // The release pipeline reads committed chapter and illustration data, so it takes
@@ -171,7 +184,18 @@ export function createHandlers(
     illustrationRepository,
     outlineRepository,
     saveFile,
+    projectRepository,
   );
+  const archiveService = createArchiveService({
+    projects: projectRepository,
+    outline: outlineRepository,
+    chapters: chapterRepository,
+    entities: entityRepository,
+    facts: factRepository,
+    relations: relationRepository,
+    glossary: glossaryRepository,
+    saveFile,
+  });
   // The backup service needs the application directory only for its guard against
   // writing dumps inside the repo; it reaches the database through its own source so
   // the same code path runs in the app and from `npm run db:dump`.
@@ -187,7 +211,7 @@ export function createHandlers(
   // settings file rather than the database.
   const settingsService = createSettingsService(settingsPath);
   const projectService = createProjectService(
-    createProjectRepository(),
+    projectRepository,
     settingsService,
   );
 
@@ -488,6 +512,22 @@ export function createHandlers(
       exportVolumeDocxRequestSchema,
       volumeDocxExportResultSchema,
       (input) => releaseService.exportVolumeDocx(input),
+    ),
+
+    [CHANNELS.releaseExportChapterHtml]: handleIpc(
+      logger,
+      CHANNELS.releaseExportChapterHtml,
+      exportChapterHtmlRequestSchema,
+      chapterHtmlExportResultSchema,
+      (input) => releaseService.exportChapterHtml(input),
+    ),
+
+    [CHANNELS.archiveExportProject]: handleIpc(
+      logger,
+      CHANNELS.archiveExportProject,
+      exportArchiveRequestSchema,
+      archiveExportResultSchema,
+      (input) => archiveService.exportProject(input),
     ),
 
     [CHANNELS.backupStatus]: handleIpc(

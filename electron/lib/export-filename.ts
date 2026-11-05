@@ -45,8 +45,30 @@ const MAX_STEM_LENGTH = 180;
  * @returns A filename that Windows, macOS and Linux will all accept.
  */
 export function toExportFileName(volumeTitle: string): string {
-  const stem = buildStem(volumeTitle);
-  return `${stem}.docx`;
+  return `${toSafeFileStem(volumeTitle)}.docx`;
+}
+
+/**
+ * Reduces a title to a safe filename stem.
+ *
+ * Exported because the `.html` and archive exports need the same Windows-safety rules,
+ * and a second implementation would eventually disagree about a colon.
+ *
+ * @param title - The author's title for the thing being written.
+ * @returns A non-empty stem with no forbidden characters.
+ */
+export function toSafeFileStem(title: string): string {
+  return buildStem(title);
+}
+
+/** Filename for a single chapter's `.html` export. */
+export function toChapterHtmlFileName(chapterTitle: string): string {
+  return `${toSafeFileStem(chapterTitle)}.html`;
+}
+
+/** Filename for the project archive. */
+export function toArchiveFileName(projectTitle: string): string {
+  return `${toSafeFileStem(projectTitle)}-archive.json`;
 }
 
 /**

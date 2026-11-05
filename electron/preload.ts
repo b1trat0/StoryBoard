@@ -90,6 +90,10 @@ export function createBridgeApi(): StoryBoardApi {
     release: {
       previewChapter: (input) => invoke(CHANNELS.releasePreviewChapter, input),
       exportVolumeDocx: (input) => invoke(CHANNELS.releaseExportVolumeDocx, input),
+      exportChapterHtml: (input) => invoke(CHANNELS.releaseExportChapterHtml, input),
+    },
+    archive: {
+      exportProject: (input) => invoke(CHANNELS.archiveExportProject, input),
     },
     backup: {
       status: (input) => invoke(CHANNELS.backupStatus, input),

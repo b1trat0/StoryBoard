@@ -812,6 +812,38 @@ export const exportVolumeDocxRequestSchema = z.object({
   volumeId: uuidSchema,
 });
 
+/** Export one chapter as a standalone `.html` file. */
+export const exportChapterHtmlRequestSchema = z.object({ chapterId: uuidSchema });
+
+export const chapterHtmlExportResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('cancelled') }),
+  z.object({
+    status: z.literal('written'),
+    filePath: z.string(),
+    chapterTitle: z.string(),
+    bytes: z.number().int().nonnegative(),
+    warnings: z.array(releaseWarningSchema),
+  }),
+]);
+
+/** Export the whole work as one JSON archive. */
+export const exportArchiveRequestSchema = z.object({ projectId: uuidSchema });
+
+export const archiveExportResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('cancelled') }),
+  z.object({
+    status: z.literal('written'),
+    filePath: z.string(),
+    projectTitle: z.string(),
+    chapterCount: z.number().int().nonnegative(),
+    entityCount: z.number().int().nonnegative(),
+    factCount: z.number().int().nonnegative(),
+    relationCount: z.number().int().nonnegative(),
+    glossaryCount: z.number().int().nonnegative(),
+    bytes: z.number().int().nonnegative(),
+  }),
+]);
+
 /**
  * What an export produced.
  *
@@ -843,6 +875,10 @@ export type ChapterRelease = z.infer<typeof chapterReleaseSchema>;
 export type PreviewChapterRequest = z.infer<typeof previewChapterRequestSchema>;
 export type ExportVolumeDocxRequest = z.infer<typeof exportVolumeDocxRequestSchema>;
 export type VolumeDocxExportResult = z.infer<typeof volumeDocxExportResultSchema>;
+export type ExportChapterHtmlRequest = z.infer<typeof exportChapterHtmlRequestSchema>;
+export type ChapterHtmlExportResult = z.infer<typeof chapterHtmlExportResultSchema>;
+export type ExportArchiveRequest = z.infer<typeof exportArchiveRequestSchema>;
+export type ArchiveExportResult = z.infer<typeof archiveExportResultSchema>;
 
 /**
  * The API surface exposed on window.storyboard. Every method returns a promise,
@@ -922,6 +958,12 @@ export interface StoryBoardApi {
   release: {
     previewChapter(input: PreviewChapterRequest): Promise<ChapterRelease>;
     exportVolumeDocx(input: ExportVolumeDocxRequest): Promise<VolumeDocxExportResult>;
+    /** Writes one chapter as a standalone `.html` file. */
+    exportChapterHtml(input: ExportChapterHtmlRequest): Promise<ChapterHtmlExportResult>;
+  };
+  archive: {
+    /** Writes the whole work as one JSON archive: prose plus structured data. */
+    exportProject(input: ExportArchiveRequest): Promise<ArchiveExportResult>;
   };
   /**
    * Manual backup of the manuscript database.

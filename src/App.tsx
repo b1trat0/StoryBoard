@@ -30,6 +30,7 @@ import { countParagraphs } from './lib/chapter-text';
 import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
+import { ProjectArchive } from './features/export/project-archive';
 
 /**
  * Application shell.
@@ -466,6 +467,7 @@ export function App() {
                   volumes={outline.tree.volumes}
                   isLoading={outline.isLoading}
                 />
+                <ProjectArchive projectId={activeProjectId} />
                 <ReleasePreview
                   key={outline.selectedChapterId ?? 'none'}
                   chapterId={outline.selectedChapterId}

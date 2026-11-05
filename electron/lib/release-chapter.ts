@@ -30,6 +30,9 @@ const MAX_RECOMMENDED_WORD_COUNT = 10000;
 /** Marks a problem that must be resolved before this chapter can be published. */
 export type ReleaseSeverity = 'blocker' | 'warning';
 
+/** Which publishing rules apply. Plain manuscripts skip Royal Road's length gates. */
+export type ReleaseProfile = 'royal_road' | 'plain';
+
 /** Machine-readable reason, so the preview can group and the tests can assert. */
 export type ReleaseWarningCode =
   | 'not_finished'
@@ -254,7 +257,11 @@ function placeIllustrations(
  * recommendation, so it is a warning rather than a blocker: an author publishing a
  * long chapter has usually decided that on purpose.
  */
-function checkChapter(chapter: Chapter, warnings: ReleaseWarning[]): void {
+function checkChapter(
+  chapter: Chapter,
+  warnings: ReleaseWarning[],
+  profile: ReleaseProfile,
+): void {
   if (chapter.status === 'outline') {
     pushWarning(
       warnings,
@@ -262,6 +269,12 @@ function checkChapter(chapter: Chapter, warnings: ReleaseWarning[]): void {
       'blocker',
       'This chapter is still an outline. It has no prose to publish yet.',
     );
+  }
+
+  // A plain manuscript is not published on Royal Road, so that site's length rules do
+  // not apply. Passing them anyway trains the author to ignore blockers.
+  if (profile === 'plain') {
+    return;
   }
   if (chapter.bodyMd.trim().length < MIN_PUBLISHABLE_CHARACTERS) {
     pushWarning(
@@ -295,6 +308,7 @@ function checkChapter(chapter: Chapter, warnings: ReleaseWarning[]): void {
 export function buildChapterRelease(
   chapter: Chapter,
   illustrations: readonly Illustration[],
+  options: { profile?: ReleaseProfile } = {},
 ): ChapterRelease {
   const warnings: ReleaseWarning[] = [];
   const isExcluded = chapter.type === 'interlude';
@@ -310,7 +324,7 @@ export function buildChapterRelease(
     pushWarning(warnings, 'unconverted_markdown', 'warning', `Author note: ${message}`);
   }
 
-  checkChapter(chapter, warnings);
+  checkChapter(chapter, warnings, options.profile ?? 'royal_road');
 
   return {
     chapterId: chapter.id,

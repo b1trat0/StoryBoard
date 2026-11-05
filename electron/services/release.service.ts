@@ -1,9 +1,14 @@
 import { buildChapterRelease } from '../lib/release-chapter.js';
 import type { ChapterRelease, ReleaseWarning } from '../lib/release-chapter.js';
+import type { Chapter } from '../ipc/contract.js';
 import { planVolumeDocx } from '../lib/volume-docx-plan.js';
 import type { VolumeDocxPlan } from '../lib/volume-docx-plan.js';
 import { renderVolumeDocx } from '../lib/docx-writer.js';
-import { toExportFileName } from '../lib/export-filename.js';
+import { renderChapterDocument } from '../lib/release-html.js';
+import { escapeHtmlText } from '../lib/html-escape.js';
+import { toChapterHtmlFileName, toExportFileName } from '../lib/export-filename.js';
+import type { ProjectRepository } from '../repositories/project.repository.js';
+import type { ReleaseProfile } from '../lib/release-chapter.js';
 import type { ChapterRepository } from '../repositories/chapter.repository.js';
 import type { IllustrationRepository } from '../repositories/illustration.repository.js';
 import type { OutlineRepository } from '../repositories/outline.repository.js';
@@ -45,7 +50,26 @@ export interface ReleaseService {
    *   wrong. Nothing is written in either case.
    */
   exportVolumeDocx(input: { volumeId: string }): Promise<VolumeDocxExportResult>;
+
+  /**
+   * Writes one chapter as a standalone `.html` file.
+   *
+   * This is the only path where a hotlinked illustration is definitely preserved,
+   * because Royal Road's form and its `.docx` import treat images differently.
+   */
+  exportChapterHtml(input: { chapterId: string }): Promise<ChapterHtmlExportResult>;
 }
+
+/** What a chapter `.html` export produced. */
+export type ChapterHtmlExportResult =
+  | { status: 'cancelled' }
+  | {
+      status: 'written';
+      filePath: string;
+      chapterTitle: string;
+      bytes: number;
+      warnings: ReleaseWarning[];
+    };
 
 /** What an export produced, or that the author declined to produce one. */
 export type VolumeDocxExportResult =
@@ -79,6 +103,7 @@ export function createReleaseService(
   illustrations: IllustrationRepository,
   outline: OutlineRepository,
   saveFile: SaveFilePicker,
+  projects?: ProjectRepository,
 ): ReleaseService {
   return {
     async previewChapter(input) {
@@ -87,7 +112,9 @@ export function createReleaseService(
         throw new RuleViolationError('That chapter no longer exists, so there is nothing to preview.');
       }
       const slots = await illustrations.listByChapter(chapter.id);
-      return buildChapterRelease(chapter, slots);
+      return buildChapterRelease(chapter, slots, {
+        profile: await resolveProfile(chapter, outline, projects),
+      });
     },
 
     async exportVolumeDocx(input) {
@@ -118,7 +145,67 @@ export function createReleaseService(
         warnings: plan.warnings,
       };
     },
+
+    async exportChapterHtml(input) {
+      const chapter = await chapters.findById(input.chapterId);
+      if (chapter === null) {
+        throw new RuleViolationError('That chapter no longer exists, so there is nothing to export.');
+      }
+
+      const slots = await illustrations.listByChapter(chapter.id);
+      const release = buildChapterRelease(chapter, slots, {
+        profile: await resolveProfile(chapter, outline, projects),
+      });
+      const html = renderChapterDocument(release, escapeHtmlText(chapter.title));
+      const bytes = Buffer.from(html, 'utf8');
+
+      const saved = await saveFile.save({
+        suggestedName: toChapterHtmlFileName(chapter.title),
+        bytes,
+        kind: 'html',
+      });
+
+      if (saved.status === 'cancelled') {
+        return { status: 'cancelled' };
+      }
+
+      return {
+        status: 'written',
+        filePath: saved.filePath,
+        chapterTitle: chapter.title,
+        bytes: bytes.byteLength,
+        warnings: release.warnings,
+      };
+    },
   };
+}
+
+/**
+ * Which publishing rules apply to a chapter.
+ *
+ * Walks chapter → arc → volume → work, because a chapter does not carry its project id
+ * directly. Falls back to Royal Road when the chain is incomplete or no project
+ * repository was supplied, so the strictest rules apply unless the work says otherwise.
+ */
+async function resolveProfile(
+  chapter: Chapter,
+  outline: OutlineRepository,
+  projects: ProjectRepository | undefined,
+): Promise<ReleaseProfile> {
+  if (projects === undefined) {
+    return 'royal_road';
+  }
+
+  const arc = await outline.findArcById(chapter.arcId);
+  if (arc === null) {
+    return 'royal_road';
+  }
+  const volume = await outline.findVolumeById(arc.volumeId);
+  if (volume === null) {
+    return 'royal_road';
+  }
+  const project = await projects.findById(volume.projectId);
+  return project?.exportProfile ?? 'royal_road';
 }
 
 /**

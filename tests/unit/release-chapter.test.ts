@@ -65,8 +65,7 @@ function bodyWithParagraphs(count: number): string {
   return Array.from({ length: count }, (_, index) => `Paragraph ${index + 1}.`).join('\n\n');
 }
 
-describe('body assembly', () => {
-  it('emits one block per paragraph in order', () => {
+describe('body assembly', () => {  it('emits one block per paragraph in order', () => {
     const release = buildChapterRelease(chapterFixture({ bodyMd: bodyWithParagraphs(4) }), []);
 
     expect(release.blocks).toHaveLength(4);
@@ -351,5 +350,34 @@ describe('html escaping helpers', () => {
 
   it('escapes ampersands before anything else', () => {
     expect(escapeHtmlText('&lt;')).toBe('&amp;lt;');
+  });
+});
+
+describe('publishing profile', () => {
+  /**
+   * Royal Road's length rules are that site's rules. A plain manuscript is not
+   * published there, so applying them would produce blockers the author cannot act on
+   * and would teach them to ignore the ones that matter.
+   */
+  it('applies Royal Road length gates by default', () => {
+    const release = buildChapterRelease(
+      chapterFixture({ bodyMd: 'Short.', wordCount: 1 }),
+      [],
+    );
+    const codes = release.warnings.map((warning) => warning.code);
+    expect(codes).toContain('too_short');
+  });
+
+  it('skips length gates for a plain manuscript but keeps the real problems', () => {
+    const release = buildChapterRelease(
+      chapterFixture({ bodyMd: 'Short.', wordCount: 1, status: 'outline' }),
+      [],
+      { profile: 'plain' },
+    );
+    const codes = release.warnings.map((warning) => warning.code);
+    expect(codes).not.toContain('too_short');
+    expect(codes).not.toContain('over_length');
+    // An outline has nothing to publish in any profile.
+    expect(codes).toContain('not_finished');
   });
 });
