@@ -1,5 +1,5 @@
 import { WarningCircle, HardDrives } from '@phosphor-icons/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { getBridge } from './lib/bridge';
 import type { Entity, EntityType } from './lib/bridge';
@@ -11,6 +11,7 @@ import { ChapterEditor } from './features/chapters/chapter-editor';
 import { DiscardDraftDialog } from './features/chapters/discard-draft-dialog';
 import { OutlineTree } from './features/chapters/outline-tree';
 import { useChapterDraft } from './features/chapters/use-chapter-draft';
+import { useCrashDraft } from './features/chapters/use-crash-draft';
 import { useOutline } from './features/chapters/use-outline';
 import { EntityCreateDialog } from './features/entities/entity-create-dialog';
 import { EntityDetail } from './features/entities/entity-detail';
@@ -54,10 +55,54 @@ export function App() {
   // unmounts whenever another section is showing, and a buffer held inside it would go
   // with it, so looking at another section would silently drop unsaved prose.
   const draft = useChapterDraft(outline.chapter, outline.saveChapterOutline);
+  // Crash recovery mirrors the buffer to disk while it is dirty and offers a stored
+  // copy back. It never writes to the database and never restores without a click.
+  const crashDraft = useCrashDraft(draft.draft, draft.isProseDirty, draft.updateDraft);
   // Pulled out of the two hook results so the callbacks below depend on the members
   // rather than on an object that is rebuilt on every render.
   const { isProseDirty } = draft;
   const { openChapter, selectChapter, selectedChapterId } = outline;
+  const { commitProse } = draft;
+
+  /*
+   * Tell main whether anything is unsaved.
+   *
+   * The window's close button is handled by the main process, which cannot see the
+   * draft buffer. This is the only thing that lets it warn instead of discarding.
+   */
+  useEffect(() => {
+    const bridge = getBridge();
+    if (bridge === null) {
+      return;
+    }
+    void bridge.editorSafety.setDirty({ isDirty: isProseDirty });
+  }, [isProseDirty]);
+
+  /*
+   * "Save and quit" chosen in the native close prompt.
+   *
+   * The window is only allowed to close after the write came back successful. A failed
+   * save leaves the app open with the error visible, which is the only outcome that
+   * cannot lose prose.
+   */
+  useEffect(() => {
+    const bridge = getBridge();
+    if (bridge === null) {
+      return;
+    }
+    return bridge.editorSafety.onSaveAndQuit(() => {
+      void (async () => {
+        const isSaved = await commitProse();
+        if (isSaved) {
+          await bridge.editorSafety.confirmQuit({});
+          return;
+        }
+        toast.error('Could not save before quitting', {
+          description: 'The window stayed open. Check the error shown in the editor.',
+        });
+      })();
+    });
+  }, [commitProse]);
 
   const [activeSection, setActiveSection] = useState<SectionId>('storybook');
   const [activeType, setActiveType] = useState<EntityType>('character');
@@ -250,6 +295,9 @@ export function App() {
                 updateDraft={draft.updateDraft}
                 saveOutlineField={draft.saveOutlineField}
                 commitProse={draft.commitProse}
+                recoveredDraft={crashDraft.recovered}
+                onRestoreDraft={crashDraft.restore}
+                onDiscardDraft={crashDraft.discard}
               />
             )}
 

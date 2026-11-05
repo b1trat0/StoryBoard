@@ -5,7 +5,8 @@ import { createLogger } from './lib/logger.js';
 import { resolveRendererEntryFromHere } from './lib/paths.js';
 import { closeDb, initDb } from './db/client.js';
 import { createHandlers } from './ipc/handlers.js';
-import type { Handlers } from './ipc/handlers.js';
+import type { Handlers, QuitControls } from './ipc/handlers.js';
+import { EVENTS } from './ipc/channels.js';
 import { createSaveFilePicker } from './interfaces/file-dialog.interface.js';
 
 /**
@@ -27,11 +28,40 @@ const DEV_SERVER_URL = process.env.STORYBOARD_DEV_SERVER;
 
 let mainWindow: BrowserWindow | null = null;
 
+/**
+ * Close-guard state, owned by the main process because it owns the window.
+ *
+ * `isDirty` is fed by the renderer, which is the only process that knows what is in
+ * the draft buffer. `allowClose` is set once the author has decided, so the second
+ * close attempt is not intercepted again.
+ */
+const quitState = {
+  isDirty: false,
+  allowClose: false,
+  isAsking: false,
+};
+
+const quitControls: QuitControls = {
+  setDirty: (isDirty) => {
+    quitState.isDirty = isDirty;
+  },
+  confirmQuit: () => {
+    quitState.allowClose = true;
+    mainWindow?.close();
+  },
+};
+
 function registerIpcHandlers(): Handlers {
   // The window is read lazily through a getter: the handlers are wired before the
   // window exists, and the export dialog should open in front of it rather than
   // behind, or nowhere at all.
-  const handlers = createHandlers(logger, createSaveFilePicker(() => mainWindow), app.getAppPath());
+  const handlers = createHandlers(
+    logger,
+    createSaveFilePicker(() => mainWindow),
+    app.getAppPath(),
+    quitControls,
+    path.join(app.getPath('userData'), 'drafts'),
+  );
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.
     // Nothing is reachable on this channel that did not pass through handleIpc,
@@ -42,6 +72,11 @@ function registerIpcHandlers(): Handlers {
 }
 
 function createWindow(): BrowserWindow {
+  // A recreated window starts with no decision recorded, so the guard runs again next
+  // time rather than inheriting "allow close" from the previous window's quit.
+  quitState.allowClose = false;
+  quitState.isAsking = false;
+
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -111,6 +146,54 @@ function createWindow(): BrowserWindow {
     }
   });
 
+  /**
+   * The close guard.
+   *
+   * Clicking the window's X, Alt+F4 and a packaged app's quit all arrive here. If the
+   * buffer holds unsaved prose the close is cancelled and the author is asked, because
+   * the alternative is prose that was on screen one second ago and nowhere else a
+   * second later.
+   *
+   * "Save and quit" is asynchronous: main asks the renderer to commit, and the renderer
+   * calls back with confirmQuit once the write succeeded. If the write fails the window
+   * simply stays open with the error visible, which is the only safe outcome.
+   */
+  window.on('close', (event) => {
+    if (quitState.allowClose || !quitState.isDirty) {
+      return;
+    }
+
+    event.preventDefault();
+    if (quitState.isAsking) {
+      return;
+    }
+    quitState.isAsking = true;
+
+    void dialog
+      .showMessageBox(window, {
+        type: 'warning',
+        title: 'Unsaved prose',
+        message: 'This chapter has prose you have not saved.',
+        detail:
+          'Saving writes the chapter exactly as it is on screen. Discarding loses it, and it was never in the database.',
+        buttons: ['Save and quit', 'Discard and quit', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true,
+      })
+      .then(({ response }) => {
+        quitState.isAsking = false;
+        if (response === 0) {
+          window.webContents.send(EVENTS.editorSaveAndQuit);
+          return;
+        }
+        if (response === 1) {
+          quitState.allowClose = true;
+          window.close();
+        }
+      });
+  });
+
   return window;
 }
 
@@ -119,9 +202,17 @@ async function bootstrap(): Promise<void> {
     initDb(logger);
     logger.info('database ready');
   } catch (err) {
-    // Without the database the app cannot function, and pretending otherwise
-    // would mean every screen failing in a more confusing way later.
+    // Without the database the app cannot function, and quitting with only a log line
+    // looks exactly like the app being broken. Say what is wrong and what fixes it,
+    // because the fix is one command the author already knows.
     logger.error('database unavailable, refusing to start', { err: String(err) });
+    dialog.showErrorBox(
+      'StoryBoard cannot reach its database',
+      'The database container is not running, or it refused the connection.\n\n' +
+        'Start it with:\n\n  npm run db:up\n\n' +
+        'Then open StoryBoard again.\n\n' +
+        `Details: ${err instanceof Error ? err.message : String(err)}`,
+    );
     app.quit();
     return;
   }
@@ -147,23 +238,44 @@ async function bootstrap(): Promise<void> {
   });
 }
 
-app.whenReady().then(bootstrap).catch((err: unknown) => {
-  logger.error('bootstrap failed', { err: String(err) });
+/**
+ * A second copy of the app would be a second editor on the same database.
+ *
+ * Two windows writing the same chapter is last-write-wins with no conflict signal,
+ * which is the one failure this app cannot detect afterwards. Refusing the second
+ * instance and focusing the first is the whole fix.
+ */
+if (!app.requestSingleInstanceLock()) {
   app.quit();
-});
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow === null) {
+      return;
+    }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
+  });
 
-app.on('window-all-closed', () => {
-  // Dropping the reference matters: Electron collects a window that nothing in JS
-  // points at, and a collected window on macOS would strand the app with no way to
-  // reopen one.
-  mainWindow = null;
-  if (process.platform !== 'darwin') {
+  app.whenReady().then(bootstrap).catch((err: unknown) => {
+    logger.error('bootstrap failed', { err: String(err) });
     app.quit();
-  }
-});
+  });
 
-app.on('will-quit', () => {
-  // The pool holds open sockets into Postgres; letting them dangle on quit
-  // delays shutdown and, on Windows, leaves the container running a client.
-  closeDb();
-});
+  app.on('window-all-closed', () => {
+    // Dropping the reference matters: Electron collects a window that nothing in JS
+    // points at, and a collected window on macOS would strand the app with no way to
+    // reopen one.
+    mainWindow = null;
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
+  app.on('will-quit', () => {
+    // The pool holds open sockets into Postgres; letting them dangle on quit
+    // delays shutdown and, on Windows, leaves the container running a client.
+    closeDb();
+  });
+}

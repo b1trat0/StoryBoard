@@ -41,7 +41,14 @@ export interface ChapterDraftState {
   errorMessage: string | null;
   updateDraft: (patch: Partial<Chapter>) => void;
   saveOutlineField: (patch: Partial<Chapter>) => Promise<void>;
-  commitProse: () => Promise<void>;
+  /**
+   * Writes the prose buffer.
+   *
+   * @returns True when the database accepted the write. The close guard depends on
+   *   knowing the difference: "the write was attempted" is not permission to close a
+   *   window on prose that was never stored.
+   */
+  commitProse: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -114,10 +121,10 @@ export function useChapterDraft(
     [onSaveOutline, record],
   );
 
-  const commitProse = useCallback(async () => {
+  const commitProse = useCallback(async (): Promise<boolean> => {
     const bridge = getBridge();
     if (bridge === null || record === null) {
-      return;
+      return false;
     }
     setIsSavingProse(true);
     setErrorMessage(null);
@@ -133,8 +140,10 @@ export function useChapterDraft(
       setRecord((current2) =>
         current2 === null ? null : { chapterId: current2.chapterId, draft: persisted, saved: persisted },
       );
+      return true;
     } catch (err) {
       setErrorMessage(describeError(err));
+      return false;
     } finally {
       setIsSavingProse(false);
     }

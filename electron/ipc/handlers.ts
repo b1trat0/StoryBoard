@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import path from 'node:path';
 import { CHANNELS } from './channels.js';
 import type { ChannelName } from './channels.js';
 import { handleIpc } from '../controllers/ipc-handler.js';
@@ -21,6 +22,7 @@ import {
 import { createReleaseService } from '../services/release.service.js';
 import { createOutlineService } from '../services/outline.service.js';
 import { createBackupService } from '../services/backup.service.js';
+import { createDraftRecoveryService } from '../services/draft-recovery.service.js';
 import { createDockerBackupSource } from '../lib/docker-backup.js';
 import { getBackupMirrorDir, getBackupsDir } from '../config.js';
 import {
@@ -66,6 +68,12 @@ import {
   backupStatusRequestSchema,
   backupRunResultSchema,
   backupStatusSchema,
+  editorSetDirtyRequestSchema,
+  confirmQuitRequestSchema,
+  saveCrashDraftRequestSchema,
+  readCrashDraftRequestSchema,
+  clearCrashDraftRequestSchema,
+  crashDraftSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -102,10 +110,25 @@ const chapterListSchema = z.array(chapterSchema);
 const glossaryListSchema = z.array(glossaryTermSchema);
 const illustrationListSchema = z.array(illustrationSchema);
 
+/**
+ * What the window needs from the shell when it is closing.
+ *
+ * Passed in rather than imported so the handlers stay free of Electron window state
+ * and remain constructible in tests.
+ */
+export interface QuitControls {
+  /** Records whether the draft buffer holds unsaved prose. */
+  setDirty(isDirty: boolean): void;
+  /** The renderer saved successfully; the window may close. */
+  confirmQuit(): void;
+}
+
 export function createHandlers(
   logger: Logger,
   saveFile: SaveFilePicker,
   appRoot: string = process.cwd(),
+  quit?: QuitControls,
+  draftsDir: string = path.join(process.cwd(), 'drafts'),
 ) {
   const entityService = createEntityService(createEntityRepository());
   const relationService = createRelationService(createRelationRepository());
@@ -142,6 +165,9 @@ export function createHandlers(
     repoRoot: appRoot,
     mirrorDir: getBackupMirrorDir(),
   });
+  // Crash drafts live in the user data directory, not the repository: they are
+  // transient copies of unsaved prose, not content the app publishes or exports.
+  const draftService = createDraftRecoveryService(draftsDir);
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -448,6 +474,54 @@ export function createHandlers(
       runBackupRequestSchema,
       backupRunResultSchema,
       () => backupService.run(),
+    ),
+
+    [CHANNELS.editorSetDirty]: handleIpc(
+      logger,
+      CHANNELS.editorSetDirty,
+      editorSetDirtyRequestSchema,
+      null,
+      async (input) => {
+        quit?.setDirty(input.isDirty);
+      },
+    ),
+
+    [CHANNELS.appConfirmQuit]: handleIpc(
+      logger,
+      CHANNELS.appConfirmQuit,
+      confirmQuitRequestSchema,
+      null,
+      async () => {
+        quit?.confirmQuit();
+      },
+    ),
+
+    [CHANNELS.draftsSave]: handleIpc(
+      logger,
+      CHANNELS.draftsSave,
+      saveCrashDraftRequestSchema,
+      null,
+      async (input) => {
+        await draftService.save(input);
+      },
+    ),
+
+    [CHANNELS.draftsRead]: handleIpc(
+      logger,
+      CHANNELS.draftsRead,
+      readCrashDraftRequestSchema,
+      crashDraftSchema.nullable(),
+      (input) => draftService.read(input.chapterId),
+    ),
+
+    [CHANNELS.draftsClear]: handleIpc(
+      logger,
+      CHANNELS.draftsClear,
+      clearCrashDraftRequestSchema,
+      null,
+      async (input) => {
+        await draftService.clear(input.chapterId);
+      },
     ),
   } satisfies Record<ChannelName, (raw: unknown) => Promise<IpcResult<unknown>>>;
 }

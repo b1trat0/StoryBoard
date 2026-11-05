@@ -11,7 +11,8 @@ established two hundred pages earlier.
 
 - **Storybook** — characters, places, factions, items and rules, with aliases and prose sheets.
 - **Chapters** — volume → arc → chapter outline, prose editor, Royal Road author notes,
-  word counts, and a draft buffer that survives navigation.
+  word counts, Ctrl+S, a close guard that refuses to discard unsaved prose, and crash
+  recovery that keeps typing when the process dies.
 - **Formatting reference** — the exact markdown the exporter understands, verified against
   the converter by tests.
 - **Royal Road export** — release preview with blockers and warnings, plus per-volume `.docx`

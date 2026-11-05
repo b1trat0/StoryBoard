@@ -300,6 +300,45 @@ export const backupStatusSchema = z.object({
 
 export const runBackupRequestSchema = z.object({});
 
+/**
+ * Unsaved-prose state as the shell knows it.
+ *
+ * The renderer owns the draft buffer, and the main process owns the window. The only
+ * way one can warn the other before closing is for the renderer to say, continuously
+ * and cheaply, whether anything is unsaved.
+ */
+export const editorSetDirtyRequestSchema = z.object({ isDirty: z.boolean() });
+
+/** The renderer confirming that prose was saved, so the window may close. */
+export const confirmQuitRequestSchema = z.object({});
+
+/**
+ * A crash-recovery copy of the editor buffer.
+ *
+ * It is deliberately not a chapter: it lives in a file under the app's user data
+ * directory, it is never read by the export pipeline, and it never becomes canon
+ * without the author choosing to restore it. Its whole job is to survive the process
+ * dying between keystrokes and the next explicit save.
+ */
+export const crashDraftSchema = z.object({
+  chapterId: uuidSchema,
+  savedAt: isoTimestampSchema,
+  bodyMd: z.string(),
+  authorNotePre: z.string(),
+  authorNotePost: z.string(),
+});
+
+export const saveCrashDraftRequestSchema = z.object({
+  chapterId: uuidSchema,
+  bodyMd: z.string(),
+  authorNotePre: z.string(),
+  authorNotePost: z.string(),
+});
+
+export const readCrashDraftRequestSchema = z.object({ chapterId: uuidSchema });
+
+export const clearCrashDraftRequestSchema = z.object({ chapterId: uuidSchema });
+
 /** Status takes no arguments; the schema exists so the handler still validates. */
 export const backupStatusRequestSchema = z.object({});
 
@@ -415,6 +454,7 @@ export type Illustration = z.infer<typeof illustrationSchema>;
 export type BackupFileInfo = z.infer<typeof backupFileInfoSchema>;
 export type BackupStatus = z.infer<typeof backupStatusSchema>;
 export type BackupRunResult = z.infer<typeof backupRunResultSchema>;
+export type CrashDraft = z.infer<typeof crashDraftSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -816,6 +856,35 @@ export interface StoryBoardApi {
   backup: {
     status(input: Record<string, never>): Promise<BackupStatus>;
     run(input: Record<string, never>): Promise<BackupRunResult>;
+  };
+  /**
+   * Closing the window without losing prose.
+   *
+   * The shell reports whether anything is unsaved. Main intercepts `close`, asks the
+   * author, and — when they choose to save — sends {@link onSaveAndQuit} so the
+   * renderer can commit the exact buffer that is on screen before the window goes.
+   */
+  editorSafety: {
+    setDirty(input: { isDirty: boolean }): Promise<void>;
+    confirmQuit(input: Record<string, never>): Promise<void>;
+    /** Subscribes to main's save-and-quit request. Returns an unsubscribe function. */
+    onSaveAndQuit(handler: () => void): () => void;
+  };
+  /**
+   * Crash-recovery copies of the editor buffer.
+   *
+   * Written to a file, never to the database, and only ever loaded back when the
+   * author explicitly restores one.
+   */
+  drafts: {
+    save(input: {
+      chapterId: string;
+      bodyMd: string;
+      authorNotePre: string;
+      authorNotePost: string;
+    }): Promise<void>;
+    read(input: { chapterId: string }): Promise<CrashDraft | null>;
+    clear(input: { chapterId: string }): Promise<void>;
   };
 }
 

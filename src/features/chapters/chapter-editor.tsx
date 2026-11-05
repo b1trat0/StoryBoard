@@ -5,8 +5,7 @@ import { EmptyState, Skeleton } from '../../components/ui/empty-state';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import type { Chapter, ChapterStatus, ChapterType } from '../../lib/bridge';
-import { cn } from '../../lib/utils';
+import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';import { cn } from '../../lib/utils';
 import {
   CHAPTER_TYPES,
   STATUS_LABELS,
@@ -36,7 +35,11 @@ export interface ChapterEditorProps {
    * the tree reloads with it; see `useChapterDraft`.
    */
   saveOutlineField: (patch: Partial<Chapter>) => Promise<void>;
-  commitProse: () => Promise<void>;
+  commitProse: () => Promise<boolean>;
+  /** A crash-recovery copy that differs from the chapter in the database. */
+  recoveredDraft: CrashDraft | null;
+  onRestoreDraft: () => Promise<void>;
+  onDiscardDraft: () => Promise<void>;
 }
 
 /**
@@ -65,6 +68,9 @@ export function ChapterEditor({
   updateDraft: onFieldChange,
   saveOutlineField: saveOutline,
   commitProse,
+  recoveredDraft,
+  onRestoreDraft,
+  onDiscardDraft,
 }: ChapterEditorProps) {
 
   if (isLoading) {
@@ -91,7 +97,19 @@ export function ChapterEditor({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        // Ctrl+S is the keystroke a writer presses without thinking. Here it does the
+        // only sensible thing rather than opening a browser save dialog.
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          event.preventDefault();
+          if (isDirty && !isSavingProse) {
+            void commitProse();
+          }
+        }
+      }}
+    >
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-8 pb-10 pt-7">
           <div className="flex items-center gap-2">
@@ -229,17 +247,38 @@ export function ChapterEditor({
             </div>
           </section>
 
+          {recoveredDraft != null && (
+            <div
+              role="status"
+              className="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface-sunken px-3.5 py-2.5"
+            >
+              <p className="min-w-0 flex-1 text-[12.5px] leading-relaxed text-ink-soft">
+                An unsaved draft from{' '}
+                <span className="font-medium text-ink">
+                  {new Date(recoveredDraft.savedAt).toLocaleString()}
+                </span>{' '}
+                was recovered from disk. It is not in the database until you restore
+                and save it.
+              </p>
+              <Button size="sm" variant="secondary" onClick={() => void onRestoreDraft()}>
+                Restore draft
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void onDiscardDraft()}>
+                Discard
+              </Button>
+            </div>
+          )}
+
           <section className="mt-8 border-t border-line pt-6">
             <div className="flex items-baseline justify-between gap-4">
-              <h2 className="font-serif text-[15px] font-semibold text-ink">Prose</h2>
-              <span className="font-mono text-xs tabular-nums text-ink-muted">
+              <h2 className="font-serif text-[15px] font-semibold text-ink">Prose</h2>              <span className="font-mono text-xs tabular-nums text-ink-muted">
                 {countWords(draft.bodyMd).toLocaleString()} words
                 {isDirty && <span className="ml-1.5 text-accent">unsaved</span>}
               </span>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-              Plain markdown, paragraphs separated by a blank line. Saved only when you
-              press Save.
+              Plain markdown, paragraphs separated by a blank line. Nothing is written
+              until you save — press Ctrl+S, or use Save prose below.
             </p>
 
             <Label htmlFor="chapter-body" className="sr-only">

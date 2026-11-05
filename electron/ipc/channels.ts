@@ -48,6 +48,22 @@ export const CHANNELS = {
   releaseExportVolumeDocx: 'release:exportVolumeDocx',
   backupStatus: 'backup:status',
   backupRun: 'backup:run',
+  editorSetDirty: 'editor:setDirty',
+  appConfirmQuit: 'app:confirmQuit',
+  draftsSave: 'drafts:save',
+  draftsRead: 'drafts:read',
+  draftsClear: 'drafts:clear',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];
+
+/**
+ * Main-to-renderer events.
+ *
+ * Kept out of CHANNELS because that object is compared against the registered
+ * handlers in a test: every channel there must be invokable. An event has no handler,
+ * so listing it in the same object would make that guard lie.
+ */
+export const EVENTS = {
+  editorSaveAndQuit: 'editor:saveAndQuit',
+} as const;

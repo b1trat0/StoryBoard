@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { CHANNELS } from './ipc/channels.js';
+import { CHANNELS, EVENTS } from './ipc/channels.js';
 import type { IpcResult } from './controllers/ipc-handler.js';
 import type { StoryBoardApi } from './ipc/contract.js';
 
@@ -93,6 +93,22 @@ export function createBridgeApi(): StoryBoardApi {
     backup: {
       status: (input) => invoke(CHANNELS.backupStatus, input),
       run: (input) => invoke(CHANNELS.backupRun, input),
+    },
+    editorSafety: {
+      setDirty: (input) => invokeVoid(CHANNELS.editorSetDirty, input),
+      confirmQuit: (input) => invokeVoid(CHANNELS.appConfirmQuit, input),
+      onSaveAndQuit: (handler) => {
+        const listener = (): void => handler();
+        ipcRenderer.on(EVENTS.editorSaveAndQuit, listener);
+        return () => {
+          ipcRenderer.removeListener(EVENTS.editorSaveAndQuit, listener);
+        };
+      },
+    },
+    drafts: {
+      save: (input) => invokeVoid(CHANNELS.draftsSave, input),
+      read: (input) => invoke(CHANNELS.draftsRead, input),
+      clear: (input) => invokeVoid(CHANNELS.draftsClear, input),
     },
   };
 }

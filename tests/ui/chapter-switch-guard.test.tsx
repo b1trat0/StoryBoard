@@ -99,13 +99,25 @@ function installBridge() {
   ]);
   const get = vi.fn(async ({ id }: { id: string }) => byId.get(id) ?? null);
   const saveProse = vi.fn(async (input: { id: string }) => byId.get(input.id) ?? null);
+  const setDirty = vi.fn(async () => undefined);
+  const confirmQuit = vi.fn(async () => undefined);
 
   (window as { storyboard?: unknown }).storyboard = {
     entities: { list: vi.fn(async () => []) },
     outline: { list: vi.fn(async () => treeFixture()) },
     chapters: { get, saveProse },
+    editorSafety: {
+      setDirty,
+      confirmQuit,
+      onSaveAndQuit: vi.fn(() => () => undefined),
+    },
+    drafts: {
+      save: vi.fn(async () => undefined),
+      read: vi.fn(async () => null),
+      clear: vi.fn(async () => undefined),
+    },
   };
-  return { get, saveProse };
+  return { get, saveProse, setDirty, confirmQuit };
 }
 
 function setValue(element: HTMLElement, value: string) {
@@ -128,8 +140,10 @@ async function openFirstChapter(): Promise<void> {
   await screen.findByLabelText('Chapter prose');
 }
 
+let bridge: ReturnType<typeof installBridge>;
+
 beforeEach(() => {
-  installBridge();
+  bridge = installBridge();
   render(<App />);
 });
 
@@ -194,5 +208,20 @@ describe('leaving a chapter with unsaved prose', () => {
 
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     expect(screen.queryByText('Unsaved prose')).toBeNull();
+  });
+});
+
+describe('closing the window', () => {
+  it('tells the main process that prose is unsaved, so the close can be intercepted', async () => {
+    await openFirstChapter();
+
+    // App mounts with a clean buffer.
+    await waitFor(() => expect(bridge.setDirty).toHaveBeenCalledWith({ isDirty: false }));
+
+    setValue(screen.getByLabelText('Chapter prose'), 'Words that exist only on screen.');
+    await waitFor(() => expect(bridge.setDirty).toHaveBeenCalledWith({ isDirty: true }));
+
+    fireEvent.click(screen.getByRole('button', { name: /save prose/i }));
+    await waitFor(() => expect(bridge.setDirty).toHaveBeenCalledWith({ isDirty: false }));
   });
 });

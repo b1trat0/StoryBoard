@@ -130,6 +130,36 @@ export interface StoryBoardBridge {
     status(input: Record<string, never>): Promise<BackupStatus>;
     run(input: Record<string, never>): Promise<BackupRunResult>;
   };
+  /**
+   * Closing the window without losing prose.
+   *
+   * `setDirty` is called on every change of unsaved state; `onSaveAndQuit` fires when
+   * the author chose "Save and quit" in the native close prompt.
+   */
+  editorSafety: {
+    setDirty(input: { isDirty: boolean }): Promise<void>;
+    confirmQuit(input: Record<string, never>): Promise<void>;
+    onSaveAndQuit(handler: () => void): () => void;
+  };
+  drafts: {
+    save(input: {
+      chapterId: string;
+      bodyMd: string;
+      authorNotePre: string;
+      authorNotePost: string;
+    }): Promise<void>;
+    read(input: { chapterId: string }): Promise<CrashDraft | null>;
+    clear(input: { chapterId: string }): Promise<void>;
+  };
+}
+
+/** A crash-recovery copy of the editor buffer. Never canon until restored. */
+export interface CrashDraft {
+  chapterId: string;
+  savedAt: string;
+  bodyMd: string;
+  authorNotePre: string;
+  authorNotePost: string;
 }
 
 export type EntityType = 'character' | 'place' | 'faction' | 'item' | 'rule';
