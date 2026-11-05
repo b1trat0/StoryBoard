@@ -124,6 +124,9 @@ export function createBridgeApi(): StoryBoardApi {
       getActive: (input) => invoke(CHANNELS.projectsGetActive, input),
       setActive: (input) => invokeVoid(CHANNELS.projectsSetActive, input),
     },
+    search: {
+      query: (input) => invoke(CHANNELS.searchQuery, input),
+    },
   };
 }
 

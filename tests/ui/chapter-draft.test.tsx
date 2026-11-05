@@ -104,6 +104,13 @@ function Shell({ chapter }: { chapter: Chapter | null }) {
           updateDraft={draft.updateDraft}
           saveOutlineField={draft.saveOutlineField}
           commitProse={draft.commitProse}
+          recoveredDraft={null}
+          onRestoreDraft={async () => undefined}
+          onDiscardDraft={async () => undefined}
+          projectId="00000000-0000-4000-8000-000000000001"
+          chapters={[]}
+          povOptions={[]}
+          onMoveChapter={async () => undefined}
         />
       )}
     </>

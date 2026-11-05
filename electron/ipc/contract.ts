@@ -323,6 +323,22 @@ export const activeProjectSchema = z.object({
 
 export const setActiveProjectRequestSchema = z.object({ projectId: uuidSchema });
 
+// --- search ----------------------------------------------------------------
+
+export const searchRequestSchema = z.object({
+  projectId: uuidSchema,
+  query: z.string(),
+});
+
+export const searchResultSchema = z.object({
+  kind: z.enum(['entity', 'glossary', 'fact']),
+  id: uuidSchema,
+  title: z.string(),
+  detail: z.string(),
+  chapterId: uuidSchema.nullable(),
+  entityType: entityTypeSchema.nullable(),
+});
+
 // --- backups ---------------------------------------------------------------
 
 /**
@@ -525,6 +541,7 @@ export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export type ListProjectsRequest = z.input<typeof listProjectsRequestSchema>;
 export type CreateProjectInput = z.input<typeof createProjectRequestSchema>;
 export type PickImageResult = z.infer<typeof pickImageResultSchema>;
+export type SearchResult = z.infer<typeof searchResultSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -1024,6 +1041,9 @@ export interface StoryBoardApi {
    * `getActive`/`setActive` remember which one the app opens with; the choice lives
    * in a settings file in the main process, not in renderer storage.
    */
+  /**
+   * One work the author can be in, and the search that jumps around inside it.
+   */
   projects: {
     list(input: ListProjectsRequest): Promise<Project[]>;
     create(input: CreateProjectInput): Promise<Project>;
@@ -1031,6 +1051,10 @@ export interface StoryBoardApi {
     archive(input: { id: string }): Promise<Project>;
     getActive(input: Record<string, never>): Promise<{ projectId: string | null }>;
     setActive(input: { projectId: string }): Promise<void>;
+  };
+  search: {
+    /** Case-insensitive recall across entities, glossary and facts. */
+    query(input: { projectId: string; query: string }): Promise<SearchResult[]>;
   };
 }
 

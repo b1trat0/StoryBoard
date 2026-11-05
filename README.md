@@ -17,6 +17,8 @@ established two hundred pages earlier.
   something, validity ranges, secrets, and who has learned each one.
 - **Glossary** — every invented name and word pinned, with notes; the never-touch list for
   the future English checker.
+- **Search** — Ctrl+K across entities, aliases, glossary and facts, jumping straight to
+  the chapter a fact came from.
 - **Illustrations** — slots anchored to a paragraph, alt text required, upload to Catbox
   only after an explicit confirmation, and a warning when the chapter got shorter than an
   existing anchor.

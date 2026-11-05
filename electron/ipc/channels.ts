@@ -63,6 +63,7 @@ export const CHANNELS = {
   projectsArchive: 'projects:archive',
   projectsGetActive: 'projects:getActive',
   projectsSetActive: 'projects:setActive',
+  searchQuery: 'search:query',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

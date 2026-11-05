@@ -178,6 +178,19 @@ export interface StoryBoardBridge {
     getActive(input?: Record<string, never>): Promise<{ projectId: string | null }>;
     setActive(input: { projectId: string }): Promise<void>;
   };
+  search: {
+    query(input: { projectId: string; query: string }): Promise<SearchResult[]>;
+  };
+}
+
+/** One recall result: an entity, a glossary term, or a fact. */
+export interface SearchResult {
+  kind: 'entity' | 'glossary' | 'fact';
+  id: string;
+  title: string;
+  detail: string;
+  chapterId: string | null;
+  entityType: EntityType | null;
 }
 
 export type ProjectKind = 'light_novel' | 'novel';

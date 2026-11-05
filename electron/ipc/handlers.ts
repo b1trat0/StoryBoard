@@ -14,6 +14,7 @@ import { createFactRepository } from '../repositories/fact.repository.js';
 import { createGlossaryRepository } from '../repositories/glossary.repository.js';
 import { createIllustrationRepository } from '../repositories/illustration.repository.js';
 import { createProjectRepository } from '../repositories/project.repository.js';
+import { createSearchRepository } from '../repositories/search.repository.js';
 import { createRelationRepository } from '../repositories/relation.repository.js';
 import {
   createChapterService,
@@ -26,6 +27,7 @@ import { createBackupService } from '../services/backup.service.js';
 import { createDraftRecoveryService } from '../services/draft-recovery.service.js';
 import { createArchiveService } from '../services/archive.service.js';
 import { createProjectService } from '../services/project.service.js';
+import { createSearchService } from '../services/search.service.js';
 import { createSettingsService } from '../services/settings.service.js';
 import { createDockerBackupSource } from '../lib/docker-backup.js';
 import { getBackupMirrorDir, getBackupsDir } from '../config.js';
@@ -91,6 +93,8 @@ import {
   archiveProjectRequestSchema,
   activeProjectSchema,
   setActiveProjectRequestSchema,
+  searchRequestSchema,
+  searchResultSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -215,6 +219,7 @@ export function createHandlers(
     projectRepository,
     settingsService,
   );
+  const searchService = createSearchService(createSearchRepository());
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -611,6 +616,14 @@ export function createHandlers(
       listProjectsRequestSchema,
       projectListSchema,
       (input) => projectService.list(input),
+    ),
+
+    [CHANNELS.searchQuery]: handleIpc(
+      logger,
+      CHANNELS.searchQuery,
+      searchRequestSchema,
+      z.array(searchResultSchema),
+      (input) => searchService.search(input),
     ),
 
     [CHANNELS.projectsCreate]: handleIpc(

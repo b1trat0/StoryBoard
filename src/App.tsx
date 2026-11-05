@@ -31,6 +31,8 @@ import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
 import { ProjectArchive } from './features/export/project-archive';
+import { SearchDialog } from './features/search/search-dialog';
+import type { SearchResult } from './lib/bridge';
 
 /**
  * Application shell.
@@ -120,6 +122,20 @@ export function App() {
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [pendingChapterId, setPendingChapterId] = useState<string | null>(null);
   const [isWorkDialogOpen, setIsWorkDialogOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Ctrl+K from anywhere. Registered before the early returns below so the shortcut
+  // exists on the first-run screen too, where there is simply nothing to search yet.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsSearchOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const entities = byType.get(activeType) ?? [];
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
@@ -262,6 +278,35 @@ export function App() {
   }, [openChapter, pendingChapterId]);
 
   const onCancelSwitch = useCallback(() => setPendingChapterId(null), []);
+
+  /**
+   * Jumping to a search result.
+   *
+   * A fact goes to the chapter it came from, an entity to its storybook tab, and a
+   * glossary term to the glossary. The point of recall is arriving where the thing
+   * lives, not reading a list of where it might be.
+   */
+  const onSelectSearchResult = useCallback(
+    (result: SearchResult) => {
+      setIsSearchOpen(false);
+      if (result.kind === 'entity') {
+        setActiveSection('storybook');
+        setActiveType(result.entityType ?? 'character');
+        setSelectedId(result.id);
+        return;
+      }
+      if (result.kind === 'glossary') {
+        setActiveSection('glossary');
+        return;
+      }
+      setActiveSection('chapters');
+      if (result.chapterId !== null) {
+        setPendingChapterId(null);
+        void openChapter(result.chapterId);
+      }
+    },
+    [openChapter],
+  );
 
   if (!hasBridge) {
     return <NoBridgeNotice />;
@@ -550,6 +595,13 @@ export function App() {
           onSubmit={onCreateProject}
         />
       )}
+
+      <SearchDialog
+        isOpen={isSearchOpen}
+        projectId={activeProjectId}
+        onClose={() => setIsSearchOpen(false)}
+        onSelect={onSelectSearchResult}
+      />
 
       <Toaster
         position="bottom-right"
