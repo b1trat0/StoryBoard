@@ -151,6 +151,40 @@ export interface StoryBoardBridge {
     read(input: { chapterId: string }): Promise<CrashDraft | null>;
     clear(input: { chapterId: string }): Promise<void>;
   };
+  projects: {
+    list(input?: { includeArchived?: boolean }): Promise<Project[]>;
+    create(input: {
+      title: string;
+      kind?: ProjectKind;
+      exportProfile?: ExportProfile;
+      summary?: string;
+    }): Promise<Project>;
+    update(input: {
+      id: string;
+      title?: string;
+      kind?: ProjectKind;
+      exportProfile?: ExportProfile;
+      summary?: string;
+    }): Promise<Project>;
+    archive(input: { id: string }): Promise<Project>;
+    getActive(input?: Record<string, never>): Promise<{ projectId: string | null }>;
+    setActive(input: { projectId: string }): Promise<void>;
+  };
+}
+
+export type ProjectKind = 'light_novel' | 'novel';
+export type ExportProfile = 'royal_road' | 'plain';
+
+/** A work: one manuscript with its own cast and continuity record. */
+export interface Project {
+  id: string;
+  title: string;
+  kind: ProjectKind;
+  exportProfile: ExportProfile;
+  summary: string;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** A crash-recovery copy of the editor buffer. Never canon until restored. */

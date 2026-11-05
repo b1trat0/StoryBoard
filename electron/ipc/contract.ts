@@ -272,6 +272,57 @@ export const illustrationSchema = z.object({
   updatedAt: isoTimestampSchema,
 });
 
+// --- projects ---------------------------------------------------------------
+
+export const projectKindSchema = z.enum(['light_novel', 'novel']);
+
+export const exportProfileSchema = z.enum(['royal_road', 'plain']);
+
+/**
+ * A work: one manuscript, its own cast, its own facts.
+ *
+ * Archived rather than deleted, because every chapter, entity and fact hangs off it
+ * with ON DELETE CASCADE. Hiding a work is reversible; deleting one is not.
+ */
+export const projectSchema = z.object({
+  id: uuidSchema,
+  title: z.string(),
+  kind: projectKindSchema,
+  exportProfile: exportProfileSchema,
+  summary: z.string(),
+  archivedAt: isoTimestampSchema.nullable(),
+  createdAt: isoTimestampSchema,
+  updatedAt: isoTimestampSchema,
+});
+
+export const listProjectsRequestSchema = z.object({
+  includeArchived: z.boolean().default(false),
+});
+
+export const createProjectRequestSchema = z.object({
+  title: nonEmptyText,
+  kind: projectKindSchema.default('light_novel'),
+  exportProfile: exportProfileSchema.default('royal_road'),
+  summary: z.string().default(''),
+});
+
+export const updateProjectRequestSchema = z.object({
+  id: uuidSchema,
+  title: nonEmptyText.optional(),
+  kind: projectKindSchema.optional(),
+  exportProfile: exportProfileSchema.optional(),
+  summary: z.string().optional(),
+});
+
+export const archiveProjectRequestSchema = z.object({ id: uuidSchema });
+
+/** The work the app opens with. Null only when no work exists yet. */
+export const activeProjectSchema = z.object({
+  projectId: uuidSchema.nullable(),
+});
+
+export const setActiveProjectRequestSchema = z.object({ projectId: uuidSchema });
+
 // --- backups ---------------------------------------------------------------
 
 /**
@@ -455,6 +506,12 @@ export type BackupFileInfo = z.infer<typeof backupFileInfoSchema>;
 export type BackupStatus = z.infer<typeof backupStatusSchema>;
 export type BackupRunResult = z.infer<typeof backupRunResultSchema>;
 export type CrashDraft = z.infer<typeof crashDraftSchema>;
+export type Project = z.infer<typeof projectSchema>;
+export type ProjectKind = z.infer<typeof projectKindSchema>;
+export type ExportProfile = z.infer<typeof exportProfileSchema>;
+export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
+export type ListProjectsRequest = z.input<typeof listProjectsRequestSchema>;
+export type CreateProjectInput = z.input<typeof createProjectRequestSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -885,6 +942,21 @@ export interface StoryBoardApi {
     }): Promise<void>;
     read(input: { chapterId: string }): Promise<CrashDraft | null>;
     clear(input: { chapterId: string }): Promise<void>;
+  };
+  /**
+   * Works.
+   *
+   * A second work is a second manuscript with its own cast and continuity record.
+   * `getActive`/`setActive` remember which one the app opens with; the choice lives
+   * in a settings file in the main process, not in renderer storage.
+   */
+  projects: {
+    list(input: ListProjectsRequest): Promise<Project[]>;
+    create(input: CreateProjectInput): Promise<Project>;
+    update(input: UpdateProjectRequest): Promise<Project>;
+    archive(input: { id: string }): Promise<Project>;
+    getActive(input: Record<string, never>): Promise<{ projectId: string | null }>;
+    setActive(input: { projectId: string }): Promise<void>;
   };
 }
 

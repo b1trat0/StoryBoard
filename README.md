@@ -9,6 +9,9 @@ established two hundred pages earlier.
 
 ## What works today
 
+- **Works** — as many manuscripts as you write, each with its own cast, outline and
+  continuity record, a kind (light novel / novel) and a publishing profile. The app
+  reopens the work you used last.
 - **Storybook** — characters, places, factions, items and rules, with aliases and prose sheets.
 - **Chapters** — volume → arc → chapter outline, prose editor, Royal Road author notes,
   word counts, Ctrl+S, a close guard that refuses to discard unsaved prose, and crash
@@ -34,7 +37,7 @@ is done), per-chapter `.html` export, the markdown archive, and the AI layer.
 npm install
 npm run db:up        # start PostgreSQL in Docker
 npm run db:migrate   # apply migrations
-npm run db:seed      # create the one project
+npm run db:seed      # create the default work
 npm start            # build both sides and open the window
 ```
 

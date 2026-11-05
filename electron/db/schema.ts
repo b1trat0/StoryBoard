@@ -34,6 +34,12 @@ export const entityTypeEnum = pgEnum('entity_type', [
   'rule',
 ]);
 
+/** What kind of work a project is. Not decoration: export defaults read it. */
+export const projectKindEnum = pgEnum('project_kind', ['light_novel', 'novel']);
+
+/** Which publishing rules apply to a work. */
+export const exportProfileEnum = pgEnum('export_profile', ['royal_road', 'plain']);
+
 export const abilityKindEnum = pgEnum('ability_kind', ['power', 'technique']);
 
 export const relationCategoryEnum = pgEnum('relation_category', [
@@ -93,7 +99,12 @@ export const illustrationProviderEnum = pgEnum('illustration_provider', [
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
+  kind: projectKindEnum('kind').notNull().default('light_novel'),
+  exportProfile: exportProfileEnum('export_profile').notNull().default('royal_road'),
+  summary: text('summary').notNull().default(''),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const volumes = pgTable(

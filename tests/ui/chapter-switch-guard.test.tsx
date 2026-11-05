@@ -101,11 +101,43 @@ function installBridge() {
   const saveProse = vi.fn(async (input: { id: string }) => byId.get(input.id) ?? null);
   const setDirty = vi.fn(async () => undefined);
   const confirmQuit = vi.fn(async () => undefined);
+  const setActive = vi.fn(async () => undefined);
 
   (window as { storyboard?: unknown }).storyboard = {
     entities: { list: vi.fn(async () => []) },
     outline: { list: vi.fn(async () => treeFixture()) },
     chapters: { get, saveProse },
+    projects: {
+      list: vi.fn(async () => [
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          title: 'My Serial',
+          kind: 'light_novel',
+          exportProfile: 'royal_road',
+          summary: '',
+          archivedAt: null,
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: '2026-11-01T00:00:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000002',
+          title: 'Second Work',
+          kind: 'novel',
+          exportProfile: 'plain',
+          summary: '',
+          archivedAt: null,
+          createdAt: '2026-11-02T00:00:00.000Z',
+          updatedAt: '2026-11-02T00:00:00.000Z',
+        },
+      ]),
+      getActive: vi.fn(async () => ({
+        projectId: '00000000-0000-4000-8000-000000000001',
+      })),
+      setActive,
+      create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+    },
     editorSafety: {
       setDirty,
       confirmQuit,
@@ -117,7 +149,7 @@ function installBridge() {
       clear: vi.fn(async () => undefined),
     },
   };
-  return { get, saveProse, setDirty, confirmQuit };
+  return { get, saveProse, setDirty, confirmQuit, setActive };
 }
 
 function setValue(element: HTMLElement, value: string) {
@@ -208,6 +240,39 @@ describe('leaving a chapter with unsaved prose', () => {
 
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     expect(screen.queryByText('Unsaved prose')).toBeNull();
+  });
+});
+
+describe('switching works', () => {
+  it('blocks the switch while prose is unsaved', async () => {
+    await openFirstChapter();
+    setValue(screen.getByLabelText('Chapter prose'), 'Only on screen so far.');
+
+    // Disabled is the honest signal: there is no chapter buffer to move to another work.
+    await waitFor(() =>
+      expect((screen.getByLabelText('Work') as HTMLSelectElement).disabled).toBe(true),
+    );
+    expect(bridge.setActive).not.toHaveBeenCalled();
+  });
+
+  it('allows the switch once the prose is saved, and remembers the choice', async () => {
+    await openFirstChapter();
+    setValue(screen.getByLabelText('Chapter prose'), 'Saved before switching.');
+    fireEvent.click(screen.getByRole('button', { name: /save prose/i }));
+
+    await waitFor(() =>
+      expect((screen.getByLabelText('Work') as HTMLSelectElement).disabled).toBe(false),
+    );
+
+    fireEvent.change(screen.getByLabelText('Work'), {
+      target: { value: '00000000-0000-4000-8000-000000000002' },
+    });
+
+    await waitFor(() =>
+      expect(bridge.setActive).toHaveBeenCalledWith({
+        projectId: '00000000-0000-4000-8000-000000000002',
+      }),
+    );
   });
 });
 

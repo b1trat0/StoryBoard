@@ -3,14 +3,8 @@ import { describeError, getBridge } from '../../lib/bridge';
 import type { Entity, EntityType } from '../../lib/bridge';
 
 /**
- * The project every screen works against.
- *
- * Single-project in practice: one serial, one manuscript. There is no server to
- * ask which project is active, so the renderer addresses this fixed id directly.
- * `npm run db:seed` writes the row.
+ * The types an entity can have, in the order the sidebar shows them.
  */
-export const ACTIVE_PROJECT_ID = '00000000-0000-4000-8000-000000000001';
-
 export const ENTITY_TYPES: { value: EntityType; label: string; plural: string }[] = [
   { value: 'character', label: 'Character', plural: 'Characters' },
   { value: 'place', label: 'Place', plural: 'Places' },
@@ -29,7 +23,17 @@ export const ENTITY_TYPES: { value: EntityType; label: string; plural: string }[
  * No LIMIT and no pagination: the project rules forbid assuming a maximum, and a
  * truncated list here would quietly hide a character from a continuity check.
  */
-export function useEntities() {
+/**
+ * Every entity in the active work, plus the operations that change them.
+ *
+ * The work is a parameter rather than a constant: switching works has to change what
+ * this lists, and a module-level id would keep showing the previous manuscript's cast
+ * until the app restarted.
+ *
+ * No LIMIT and no pagination: the project rules forbid assuming a maximum, and a
+ * truncated list here would quietly hide a character from a continuity check.
+ */
+export function useEntities(projectId: string | null) {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,9 +44,14 @@ export function useEntities() {
     if (bridge === null) {
       return;
     }
+    if (projectId === null) {
+      setEntities([]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const rows = await bridge.entities.list({ projectId: ACTIVE_PROJECT_ID });
+      const rows = await bridge.entities.list({ projectId });
       setEntities(rows);
       setErrorMessage(null);
     } catch (err) {
@@ -52,7 +61,7 @@ export function useEntities() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     // Fetching from the main process is the legitimate reason for an effect here.
@@ -91,8 +100,11 @@ export function useEntities() {
       if (bridge === null) {
         throw new Error('Not running inside the StoryBoard app');
       }
+      if (projectId === null) {
+        throw new Error('Open a work before adding an entity.');
+      }
       const created = await bridge.entities.create({
-        projectId: ACTIVE_PROJECT_ID,
+        projectId,
         type: input.type,
         canonicalName: input.canonicalName,
         aliases: input.aliases,
@@ -102,7 +114,7 @@ export function useEntities() {
       await reload();
       return created;
     },
-    [reload],
+    [reload, projectId],
   );
 
   const update = useCallback(

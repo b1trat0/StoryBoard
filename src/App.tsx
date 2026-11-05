@@ -20,6 +20,9 @@ import { EntitySidebar } from './features/entities/entity-sidebar';
 import { useEntities } from './features/entities/use-entities';
 import { FormattingReference } from './features/export/formatting-reference';
 import { BackupDialog } from './features/backup/backup-dialog';
+import { ProjectCreateDialog } from './features/projects/project-create-dialog';
+import { ProjectSwitcher } from './features/projects/project-switcher';
+import { useProjects } from './features/projects/use-projects';
 import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
@@ -27,17 +30,17 @@ import { VolumeDocxExport } from './features/export/volume-docx-export';
 /**
  * Application shell.
  *
- * Two panes of navigation and one work area. The header chooses the section, the
- * left pane navigates within it, and the middle pane is where the work happens. A
- * section with nothing built yet says so instead of pretending to be empty.
+ * Two panes of navigation and one work area. The header chooses the section and the
+ * work, the left pane navigates within it, and the middle pane is where the work
+ * happens. A section with nothing built yet says so instead of pretending to be empty.
  *
- * The active project is a fixed id for now. The seed creates exactly one, and until
- * there is a way to create another, reading it from configuration is more honest
- * than a project picker that can only ever offer one choice.
+ * The open work is not a constant any more. Which one was last used lives in the main
+ * process's settings file, because the renderer owns no durable state.
  */
-const ACTIVE_PROJECT_ID = '00000000-0000-4000-8000-000000000001';
-
 export function App() {
+  const projects = useProjects();
+  const activeProjectId = projects.activeProject?.id ?? null;
+
   const {
     byType,
     counts,
@@ -48,9 +51,9 @@ export function App() {
     update,
     addAlias,
     remove,
-  } = useEntities();
+  } = useEntities(activeProjectId);
 
-  const outline = useOutline(ACTIVE_PROJECT_ID);
+  const outline = useOutline(activeProjectId);
   // Called here, above the section switch, rather than inside the editor. The editor
   // unmounts whenever another section is showing, and a buffer held inside it would go
   // with it, so looking at another section would silently drop unsaved prose.
@@ -110,10 +113,52 @@ export function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [pendingChapterId, setPendingChapterId] = useState<string | null>(null);
+  const [isWorkDialogOpen, setIsWorkDialogOpen] = useState(false);
 
   const entities = byType.get(activeType) ?? [];
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
   const hasBridge = getBridge() !== null;
+
+  const onSelectProject = useCallback(
+    (projectId: string) => {
+      if (projectId === activeProjectId) {
+        return;
+      }
+      // Switching works replaces the cast, the outline and the editor buffer. Unsaved
+      // prose is the one thing that cannot be recovered from the other work, so the
+      // switch is refused rather than prompted: a save is one keystroke away.
+      if (isProseDirty) {
+        toast.error('Save your prose before switching works', {
+          description: 'Press Ctrl+S, then choose the other work.',
+        });
+        return;
+      }
+      void projects.selectProject(projectId).catch((err: unknown) => {
+        toast.error('Could not switch works', {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      });
+      setSelectedId(null);
+      setPendingChapterId(null);
+    },
+    [activeProjectId, isProseDirty, projects],
+  );
+
+  const onCreateProject = useCallback(
+    async (input: {
+      title: string;
+      kind: 'light_novel' | 'novel';
+      exportProfile: 'royal_road' | 'plain';
+    }) => {
+      const created = await projects.createProject(input);
+      setSelectedId(null);
+      setPendingChapterId(null);
+      toast.success(`${created.title} created`, {
+        description: 'Add volumes and chapters to start the outline.',
+      });
+    },
+    [projects],
+  );
 
   const onSelectType = useCallback((type: EntityType) => {
     setActiveType(type);
@@ -200,6 +245,41 @@ export function App() {
     return <NoBridgeNotice />;
   }
 
+  /*
+   * A fresh database has no work yet. Showing an empty three-pane shell would look
+   * like the app failed to load; asking for a title is the only useful first screen.
+   */
+  if (!projects.isLoading && projects.activeProject === null) {
+    return (
+      <div className="flex h-full items-center justify-center bg-paper p-8">
+        <div className="w-full max-w-md rounded-xl border border-line bg-surface p-7">
+          <h1 className="font-serif text-xl font-semibold text-ink">
+            Create your first work
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+            A work is one manuscript with its own cast, outline and continuity record.
+            You can have as many as you write.
+          </p>
+          {projects.errorMessage !== null && (
+            <p role="alert" className="mt-3 text-[12.5px] text-danger">
+              {projects.errorMessage}
+            </p>
+          )}
+          <Button className="mt-5" onClick={() => setIsWorkDialogOpen(true)}>
+            New work
+          </Button>
+        </div>
+        {isWorkDialogOpen && (
+          <ProjectCreateDialog
+            isOpen
+            onClose={() => setIsWorkDialogOpen(false)}
+            onSubmit={onCreateProject}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-paper">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface pl-4 pr-4">
@@ -207,7 +287,14 @@ export function App() {
           <span className="font-serif text-[15px] font-semibold tracking-tight text-ink">
             StoryBoard
           </span>
-          <span className="text-[13px] text-ink-muted">My Serial</span>
+          <ProjectSwitcher
+            projects={projects.projects}
+            activeProjectId={activeProjectId}
+            isLoading={projects.isLoading}
+            isDisabled={isProseDirty}
+            onSelect={onSelectProject}
+            onCreate={() => setIsWorkDialogOpen(true)}
+          />
         </div>
         <AppNav activeSection={activeSection} onSelectSection={setActiveSection} />
         <div className="flex items-center gap-3">
@@ -377,6 +464,14 @@ export function App() {
 
       {isBackupOpen && (
         <BackupDialog isOpen onClose={() => setIsBackupOpen(false)} />
+      )}
+
+      {isWorkDialogOpen && (
+        <ProjectCreateDialog
+          isOpen
+          onClose={() => setIsWorkDialogOpen(false)}
+          onSubmit={onCreateProject}
+        />
       )}
 
       <Toaster

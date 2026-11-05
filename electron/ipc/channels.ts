@@ -53,6 +53,12 @@ export const CHANNELS = {
   draftsSave: 'drafts:save',
   draftsRead: 'drafts:read',
   draftsClear: 'drafts:clear',
+  projectsList: 'projects:list',
+  projectsCreate: 'projects:create',
+  projectsUpdate: 'projects:update',
+  projectsArchive: 'projects:archive',
+  projectsGetActive: 'projects:getActive',
+  projectsSetActive: 'projects:setActive',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

@@ -110,6 +110,14 @@ export function createBridgeApi(): StoryBoardApi {
       read: (input) => invoke(CHANNELS.draftsRead, input),
       clear: (input) => invokeVoid(CHANNELS.draftsClear, input),
     },
+    projects: {
+      list: (input) => invoke(CHANNELS.projectsList, input),
+      create: (input) => invoke(CHANNELS.projectsCreate, input),
+      update: (input) => invoke(CHANNELS.projectsUpdate, input),
+      archive: (input) => invoke(CHANNELS.projectsArchive, input),
+      getActive: (input) => invoke(CHANNELS.projectsGetActive, input),
+      setActive: (input) => invokeVoid(CHANNELS.projectsSetActive, input),
+    },
   };
 }
 

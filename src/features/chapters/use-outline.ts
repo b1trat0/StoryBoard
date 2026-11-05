@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBridge } from '../../lib/bridge';
 import type {
   Arc,
@@ -60,7 +60,7 @@ export interface OutlineState {
 
 const EMPTY_TREE: OutlineTree = { volumes: [] };
 
-export function useOutline(projectId: string): OutlineState {
+export function useOutline(projectId: string | null): OutlineState {
   const [tree, setTree] = useState<OutlineTree>(EMPTY_TREE);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -68,6 +68,7 @@ export function useOutline(projectId: string): OutlineState {
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [isChapterLoading, setIsChapterLoading] = useState(false);
+  const loadedProjectId = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     const bridge = getBridge();
@@ -76,6 +77,20 @@ export function useOutline(projectId: string): OutlineState {
       // load and nothing useful to say here.
       setIsLoading(false);
       return;
+    }
+    if (projectId === null) {
+      setTree(EMPTY_TREE);
+      setChapter(null);
+      setSelectedChapterId(null);
+      setIsLoading(false);
+      return;
+    }
+    if (loadedProjectId.current !== projectId) {
+      // Switching works is not a chapter switch: the open chapter belongs to the work
+      // being left, so it is dropped rather than shown under the new outline.
+      loadedProjectId.current = projectId;
+      setChapter(null);
+      setSelectedChapterId(null);
     }
     setErrorMessage(null);
     try {
@@ -139,7 +154,14 @@ export function useOutline(projectId: string): OutlineState {
   );
 
   const createVolume: OutlineState['createVolume'] = useCallback(
-    (input) => runMutation('volume', (bridge) => bridge.outline.createVolume({ projectId, ...input })),
+    (input) => {
+      if (projectId === null) {
+        throw new Error('Open a work before creating a volume.');
+      }
+      return runMutation('volume', (bridge) =>
+        bridge.outline.createVolume({ projectId, ...input }),
+      );
+    },
     [runMutation, projectId],
   );
 

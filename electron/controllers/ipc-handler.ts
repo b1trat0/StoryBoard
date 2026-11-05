@@ -52,9 +52,9 @@ const CONSTRAINT_MESSAGES: Record<string, string> = {
   illustrations_alt_text_check:
     'Every image needs alt text. Royal Road requires it, and screen readers need it.',
   glossary_terms_project_form_uq: 'That glossary entry already exists.',
-  chapters_arc_ordinal_uq: 'Another chapter already sits at that position in this arc.',
-  entity_abilities_entity_kind_name_uq:
+  chapters_arc_ordinal_uq: 'Another chapter already sits at that position in this arc.',  entity_abilities_entity_kind_name_uq:
     'That entity already has an ability with this name.',
+  projects_title_uq: 'A work with that title already exists.',
 };
 
 function describeZodError(err: ZodError): string {

@@ -4,13 +4,14 @@ import { getDatabaseConfig } from '../electron/config.js';
 import { createLogger } from '../electron/lib/logger.js';
 
 /**
- * Creates the one project the app works against.
+ * Creates the default work on a fresh database.
  *
- * The app is single-project in practice: one serial novel, one manuscript. The
- * projects row exists because chapters, entities and facts all hang off it, not
- * because the app will ever host two.
+ * The app no longer addresses a fixed project id: the work switcher lists whatever
+ * exists and remembers which one was open. This row exists so a first run has
+ * somewhere to start rather than an empty shell; a second work is created from the
+ * header, not by editing this file.
  *
- * This script is idempotent: running it twice leaves one project, not two, so it
+ * This script is idempotent: running it twice leaves one default work, not two, so it
  * is safe to call from setup instructions.
  */
 

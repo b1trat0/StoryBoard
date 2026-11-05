@@ -61,6 +61,7 @@ function registerIpcHandlers(): Handlers {
     app.getAppPath(),
     quitControls,
     path.join(app.getPath('userData'), 'drafts'),
+    path.join(app.getPath('userData'), 'settings.json'),
   );
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.

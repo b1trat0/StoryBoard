@@ -13,6 +13,7 @@ import { createEntityRepository } from '../repositories/entity.repository.js';
 import { createFactRepository } from '../repositories/fact.repository.js';
 import { createGlossaryRepository } from '../repositories/glossary.repository.js';
 import { createIllustrationRepository } from '../repositories/illustration.repository.js';
+import { createProjectRepository } from '../repositories/project.repository.js';
 import { createRelationRepository } from '../repositories/relation.repository.js';
 import {
   createChapterService,
@@ -23,6 +24,8 @@ import { createReleaseService } from '../services/release.service.js';
 import { createOutlineService } from '../services/outline.service.js';
 import { createBackupService } from '../services/backup.service.js';
 import { createDraftRecoveryService } from '../services/draft-recovery.service.js';
+import { createProjectService } from '../services/project.service.js';
+import { createSettingsService } from '../services/settings.service.js';
 import { createDockerBackupSource } from '../lib/docker-backup.js';
 import { getBackupMirrorDir, getBackupsDir } from '../config.js';
 import {
@@ -74,6 +77,13 @@ import {
   readCrashDraftRequestSchema,
   clearCrashDraftRequestSchema,
   crashDraftSchema,
+  projectSchema,
+  listProjectsRequestSchema,
+  createProjectRequestSchema,
+  updateProjectRequestSchema,
+  archiveProjectRequestSchema,
+  activeProjectSchema,
+  setActiveProjectRequestSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -109,6 +119,7 @@ const relationListSchema = z.array(relationWithKnowledgeSchema);
 const chapterListSchema = z.array(chapterSchema);
 const glossaryListSchema = z.array(glossaryTermSchema);
 const illustrationListSchema = z.array(illustrationSchema);
+const projectListSchema = z.array(projectSchema);
 
 /**
  * What the window needs from the shell when it is closing.
@@ -129,6 +140,7 @@ export function createHandlers(
   appRoot: string = process.cwd(),
   quit?: QuitControls,
   draftsDir: string = path.join(process.cwd(), 'drafts'),
+  settingsPath: string = path.join(process.cwd(), 'settings.json'),
 ) {
   const entityService = createEntityService(createEntityRepository());
   const relationService = createRelationService(createRelationRepository());
@@ -168,6 +180,13 @@ export function createHandlers(
   // Crash drafts live in the user data directory, not the repository: they are
   // transient copies of unsaved prose, not content the app publishes or exports.
   const draftService = createDraftRecoveryService(draftsDir);
+  // Which work was last open is a preference, not manuscript data, so it lives in a
+  // settings file rather than the database.
+  const settingsService = createSettingsService(settingsPath);
+  const projectService = createProjectService(
+    createProjectRepository(),
+    settingsService,
+  );
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -521,6 +540,56 @@ export function createHandlers(
       null,
       async (input) => {
         await draftService.clear(input.chapterId);
+      },
+    ),
+
+    [CHANNELS.projectsList]: handleIpc(
+      logger,
+      CHANNELS.projectsList,
+      listProjectsRequestSchema,
+      projectListSchema,
+      (input) => projectService.list(input),
+    ),
+
+    [CHANNELS.projectsCreate]: handleIpc(
+      logger,
+      CHANNELS.projectsCreate,
+      createProjectRequestSchema,
+      projectSchema,
+      (input) => projectService.create(input),
+    ),
+
+    [CHANNELS.projectsUpdate]: handleIpc(
+      logger,
+      CHANNELS.projectsUpdate,
+      updateProjectRequestSchema,
+      projectSchema,
+      (input) => projectService.update(input),
+    ),
+
+    [CHANNELS.projectsArchive]: handleIpc(
+      logger,
+      CHANNELS.projectsArchive,
+      archiveProjectRequestSchema,
+      projectSchema,
+      (input) => projectService.archive(input),
+    ),
+
+    [CHANNELS.projectsGetActive]: handleIpc(
+      logger,
+      CHANNELS.projectsGetActive,
+      runBackupRequestSchema,
+      activeProjectSchema,
+      () => projectService.getActive(),
+    ),
+
+    [CHANNELS.projectsSetActive]: handleIpc(
+      logger,
+      CHANNELS.projectsSetActive,
+      setActiveProjectRequestSchema,
+      null,
+      async (input) => {
+        await projectService.setActive(input);
       },
     ),
   } satisfies Record<ChannelName, (raw: unknown) => Promise<IpcResult<unknown>>>;

@@ -6,6 +6,7 @@ import type {
   Fact,
   GlossaryTerm,
   Illustration,
+  Project,
   Relation,
   Volume,
 } from '../ipc/contract.js';
@@ -17,6 +18,7 @@ import type {
   FactRow,
   GlossaryTermRow,
   IllustrationRow,
+  ProjectRow,
   RelationRow,
   VolumeRow,
 } from './schema.js';
@@ -195,6 +197,19 @@ export function toIllustrationDto(row: IllustrationRow): Illustration {
     height: row.height,
     altText: row.altText,
     caption: row.caption,
+    createdAt: requiredIso(row.createdAt),
+    updatedAt: requiredIso(row.updatedAt),
+  };
+}
+
+export function toProjectDto(row: ProjectRow): Project {
+  return {
+    id: row.id,
+    title: row.title,
+    kind: row.kind,
+    exportProfile: row.exportProfile,
+    summary: row.summary,
+    archivedAt: toIso(row.archivedAt),
     createdAt: requiredIso(row.createdAt),
     updatedAt: requiredIso(row.updatedAt),
   };
