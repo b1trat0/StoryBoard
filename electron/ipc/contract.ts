@@ -272,6 +272,58 @@ export const illustrationSchema = z.object({
   updatedAt: isoTimestampSchema,
 });
 
+// --- backups ---------------------------------------------------------------
+
+/**
+ * One verified dump on disk.
+ *
+ * The path is included because the author needs to know where to recover from,
+ * not only that a backup happened. It is a path this process chose, so it is safe
+ * to display; it is never a path the renderer supplied.
+ */
+export const backupFileInfoSchema = z.object({
+  fileName: z.string(),
+  filePath: z.string(),
+  bytes: z.number().int().nonnegative(),
+  createdAt: isoTimestampSchema,
+});
+
+/** What the backup screen shows before the author presses anything. */
+export const backupStatusSchema = z.object({
+  /** Directory dumps are written to. */
+  directory: z.string(),
+  /** True when a second copy location is configured. */
+  isMirrorConfigured: z.boolean(),
+  /** Newest dump, or null when nothing has been backed up yet. */
+  lastBackup: backupFileInfoSchema.nullable(),
+});
+
+export const runBackupRequestSchema = z.object({});
+
+/** Status takes no arguments; the schema exists so the handler still validates. */
+export const backupStatusRequestSchema = z.object({});
+
+/**
+ * What one backup wrote.
+ *
+ * Row counts are part of the result because "38 KB was written" tells the author
+ * nothing. The counts are read from the live database immediately after the dump,
+ * so a number here that looks wrong is itself a warning.
+ */
+export const backupRunResultSchema = z.object({
+  file: backupFileInfoSchema,
+  counts: z.object({
+    chapters: z.number().int().nonnegative(),
+    entities: z.number().int().nonnegative(),
+    facts: z.number().int().nonnegative(),
+    relations: z.number().int().nonnegative(),
+  }),
+  /** Expired dumps removed after this one was safely on disk. */
+  removed: z.array(z.string()),
+  /** Second copy, when a mirror directory is configured. */
+  mirrorPath: z.string().nullable(),
+});
+
 // --- release preview --------------------------------------------------------
 
 /**
@@ -360,6 +412,9 @@ export type OutlineVolumeNode = z.infer<typeof outlineVolumeNodeSchema>;
 export type Fact = z.infer<typeof factSchema>;
 export type GlossaryTerm = z.infer<typeof glossaryTermSchema>;
 export type Illustration = z.infer<typeof illustrationSchema>;
+export type BackupFileInfo = z.infer<typeof backupFileInfoSchema>;
+export type BackupStatus = z.infer<typeof backupStatusSchema>;
+export type BackupRunResult = z.infer<typeof backupRunResultSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -749,6 +804,18 @@ export interface StoryBoardApi {
   release: {
     previewChapter(input: PreviewChapterRequest): Promise<ChapterRelease>;
     exportVolumeDocx(input: ExportVolumeDocxRequest): Promise<VolumeDocxExportResult>;
+  };
+  /**
+   * Manual backup of the manuscript database.
+   *
+   * Triggered by the author, not by a clock: a scheduled task that silently stops
+   * working is indistinguishable from a scheduled task that works, and this app has
+   * no server to notice the difference. Pressing the button returns what was written
+   * and where, which is the whole point.
+   */
+  backup: {
+    status(input: Record<string, never>): Promise<BackupStatus>;
+    run(input: Record<string, never>): Promise<BackupRunResult>;
   };
 }
 

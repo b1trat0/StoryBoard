@@ -20,6 +20,9 @@ import {
 } from '../services/content.service.js';
 import { createReleaseService } from '../services/release.service.js';
 import { createOutlineService } from '../services/outline.service.js';
+import { createBackupService } from '../services/backup.service.js';
+import { createDockerBackupSource } from '../lib/docker-backup.js';
+import { getBackupMirrorDir, getBackupsDir } from '../config.js';
 import {
   createEntityService,
   createFactService,
@@ -59,6 +62,10 @@ import {
   outlineDeletionImpactSchema,
   outlineTreeSchema,
   previewChapterRequestSchema,
+  runBackupRequestSchema,
+  backupStatusRequestSchema,
+  backupRunResultSchema,
+  backupStatusSchema,
   relationWithKnowledgeSchema,
   saveChapterProseRequestSchema,
   saveChapterOutlineRequestSchema,
@@ -95,7 +102,11 @@ const chapterListSchema = z.array(chapterSchema);
 const glossaryListSchema = z.array(glossaryTermSchema);
 const illustrationListSchema = z.array(illustrationSchema);
 
-export function createHandlers(logger: Logger, saveFile: SaveFilePicker) {
+export function createHandlers(
+  logger: Logger,
+  saveFile: SaveFilePicker,
+  appRoot: string = process.cwd(),
+) {
   const entityService = createEntityService(createEntityRepository());
   const relationService = createRelationService(createRelationRepository());
   const factService = createFactService(createFactRepository());
@@ -123,6 +134,14 @@ export function createHandlers(logger: Logger, saveFile: SaveFilePicker) {
     outlineRepository,
     saveFile,
   );
+  // The backup service needs the application directory only for its guard against
+  // writing dumps inside the repo; it reaches the database through its own source so
+  // the same code path runs in the app and from `npm run db:dump`.
+  const backupService = createBackupService(createDockerBackupSource(), {
+    backupsDir: getBackupsDir(),
+    repoRoot: appRoot,
+    mirrorDir: getBackupMirrorDir(),
+  });
 
   return {
     [CHANNELS.entitiesList]: handleIpc(
@@ -413,6 +432,22 @@ export function createHandlers(logger: Logger, saveFile: SaveFilePicker) {
       exportVolumeDocxRequestSchema,
       volumeDocxExportResultSchema,
       (input) => releaseService.exportVolumeDocx(input),
+    ),
+
+    [CHANNELS.backupStatus]: handleIpc(
+      logger,
+      CHANNELS.backupStatus,
+      backupStatusRequestSchema,
+      backupStatusSchema,
+      () => backupService.status(),
+    ),
+
+    [CHANNELS.backupRun]: handleIpc(
+      logger,
+      CHANNELS.backupRun,
+      runBackupRequestSchema,
+      backupRunResultSchema,
+      () => backupService.run(),
     ),
   } satisfies Record<ChannelName, (raw: unknown) => Promise<IpcResult<unknown>>>;
 }

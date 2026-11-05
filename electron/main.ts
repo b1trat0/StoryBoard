@@ -31,7 +31,7 @@ function registerIpcHandlers(): Handlers {
   // The window is read lazily through a getter: the handlers are wired before the
   // window exists, and the export dialog should open in front of it rather than
   // behind, or nowhere at all.
-  const handlers = createHandlers(logger, createSaveFilePicker(() => mainWindow));
+  const handlers = createHandlers(logger, createSaveFilePicker(() => mainWindow), app.getAppPath());
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.
     // Nothing is reachable on this channel that did not pass through handleIpc,

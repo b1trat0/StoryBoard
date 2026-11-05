@@ -30,7 +30,6 @@
     "db:seed": "npm run build:electron && node dist-electron/scripts/seed.js",
     "db:dump": "npm run build:electron && node dist-electron/scripts/pg-dump.js",
     "db:restore": "npm run build:electron && node dist-electron/scripts/restore.js",
-    "backup:task": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-backup-task.ps1",
     "db:reset": "npm run build:electron && node dist-electron/scripts/migrate.js --reset"
   },
   "dependencies": {

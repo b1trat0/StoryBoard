@@ -16,7 +16,7 @@ established two hundred pages earlier.
   the converter by tests.
 - **Royal Road export** — release preview with blockers and warnings, plus per-volume `.docx`
   for bulk import.
-- **Backups** — verified `pg_dump` with retention, a restore drill, and a scheduled task.
+- **Backups** — verified `pg_dump` with retention and a restore drill, from the header button or the CLI.
 
 Not built yet: relations, facts, glossary and illustration screens (the backend for all four
 is done), per-chapter `.html` export, the markdown archive, and the AI layer.

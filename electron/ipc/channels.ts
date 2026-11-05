@@ -46,6 +46,8 @@ export const CHANNELS = {
   illustrationsUploadToHost: 'illustrations:uploadToHost',
   releasePreviewChapter: 'release:previewChapter',
   releaseExportVolumeDocx: 'release:exportVolumeDocx',
+  backupStatus: 'backup:status',
+  backupRun: 'backup:run',
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

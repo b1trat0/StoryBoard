@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { getBackupsDir, getDatabaseConfig, getDatabaseContainer } from '../electron/config.js';
 import { parseDumpFileName } from '../electron/lib/backup-policy.js';
 import type { DumpFile } from '../electron/lib/backup-policy.js';
+import { readCountsFromContainer } from '../electron/lib/docker-backup.js';
+import { describeFailure, runInContainer } from '../electron/lib/docker-process.js';
 import { createLogger } from '../electron/lib/logger.js';
-import { describeFailure, runInContainer } from './docker.js';
+import { describeTableCounts, COUNTED_TABLES } from '../electron/lib/table-counts.js';
 
 /**
  * Proves a dump can actually be restored.
@@ -24,14 +26,6 @@ const logger = createLogger();
 /** Throwaway database used for restore drills. Fixed so it can never target live data. */
 const RESTORE_CHECK_DATABASE = 'storyboard_restore_check';
 
-/** Tables whose row counts must match for a restore to be considered good. */
-const COUNTED_TABLES = ['chapters', 'entities', 'facts', 'relations'] as const;
-
-interface RestoreOptions {
-  filePath: string;
-  keep: boolean;
-}
-
 /**
  * Parses the script's arguments.
  *
@@ -48,17 +42,14 @@ export function parseRestoreArguments(argv: readonly string[]): {
   let filePath: string | null = null;
 
   for (const argument of argv) {
-    if (argument === '--latest') {
-      continue;
-    }
-    if (argument === '--keep') {
+    if (argument === '--latest' || argument === '--keep') {
       continue;
     }
     if (argument.startsWith('--file=')) {
       filePath = argument.slice('--file='.length);
-    } else {
-      throw new Error(`Unknown argument: ${argument}`);
+      continue;
     }
+    throw new Error(`Unknown argument: ${argument}`);
   }
 
   return { filePath, keep: argv.includes('--keep') };
@@ -86,7 +77,7 @@ async function findLatestDump(backupsDir: string): Promise<string> {
 }
 
 /**
- * Runs a single `psql` statement inside the database container.
+ * Runs one administrative `psql` statement inside the database container.
  *
  * @param statement - SQL to execute. Interpolated database names are constants in
  *   this file, never user input.
@@ -94,7 +85,7 @@ async function findLatestDump(backupsDir: string): Promise<string> {
  * @returns Captured stdout.
  * @throws When psql fails.
  */
-async function runSql(statement: string, databaseName: string): Promise<string> {
+async function runSql(statement: string, databaseName: string): Promise<void> {
   const database = getDatabaseConfig();
   const result = await runInContainer(getDatabaseContainer(), [
     'psql',
@@ -104,42 +95,24 @@ async function runSql(statement: string, databaseName: string): Promise<string> 
     databaseName,
     '-v',
     'ON_ERROR_STOP=1',
-    '-t',
-    '-A',
     '-c',
     statement,
   ]);
   if (result.exitCode !== 0) {
     throw new Error(`psql failed (${describeFailure(result)})`);
   }
-  return result.stdout.toString('utf8').trim();
-}
-
-/**
- * Reads the row counts that must agree between live and restored databases.
- *
- * @param databaseName - Database to count in.
- * @returns Counts in {@link COUNTED_TABLES} order.
- */
-async function readCounts(databaseName: string): Promise<number[]> {
-  const selectList = COUNTED_TABLES.map((table) => `(SELECT count(*) FROM ${table})`).join(
-    ', ',
-  );
-  const output = await runSql(`SELECT ${selectList}`, databaseName);
-  return output.split('|').map((value) => Number(value.trim()));
 }
 
 /**
  * Restores a dump into the throwaway database and compares it with the live one.
  *
  * @param options - Which dump to restore and whether to keep the throwaway database.
- * @returns The compared counts.
  * @throws When the archive cannot be restored or the counts differ.
  */
-export async function verifyRestore(options: RestoreOptions): Promise<{
-  counts: number[];
-  isKept: boolean;
-}> {
+export async function verifyRestore(options: {
+  filePath: string;
+  keep: boolean;
+}): Promise<void> {
   const bytes = await readFile(options.filePath);
   if (bytes.byteLength === 0) {
     throw new Error(`${options.filePath} is empty`);
@@ -173,49 +146,39 @@ export async function verifyRestore(options: RestoreOptions): Promise<{
     throw new Error(`pg_restore failed (${describeFailure(restore)})`);
   }
 
-  const liveCounts = await readCounts(database.database);
-  const restoredCounts = await readCounts(RESTORE_CHECK_DATABASE);
+  const liveCounts = await readCountsFromContainer(database.database);
+  const restoredCounts = await readCountsFromContainer(RESTORE_CHECK_DATABASE);
 
-  const mismatches = COUNTED_TABLES.map((table, index) => ({
-    table,
-    live: liveCounts[index],
-    restored: restoredCounts[index],
-  })).filter((entry) => entry.live !== entry.restored);
+  const mismatches = COUNTED_TABLES.filter(
+    (table) => liveCounts[table] !== restoredCounts[table],
+  );
 
   if (mismatches.length > 0) {
     const detail = mismatches
-      .map((entry) => `${entry.table}: live ${entry.live}, restored ${entry.restored}`)
+      .map(
+        (table) =>
+          `${table}: live ${liveCounts[table]}, restored ${restoredCounts[table]}`,
+      )
       .join('; ');
     throw new Error(`Restore does not match the live database (${detail})`);
   }
 
-  logger.info('restore drill matched', {
-    chapters: restoredCounts[0],
-    entities: restoredCounts[1],
-    facts: restoredCounts[2],
-    relations: restoredCounts[3],
-  });
+  logger.info('restore drill matched', { counts: describeTableCounts(restoredCounts) });
 
   if (!options.keep) {
     await runSql(`DROP DATABASE IF EXISTS ${RESTORE_CHECK_DATABASE}`, 'postgres');
   } else {
     logger.info('throwaway database kept', { database: RESTORE_CHECK_DATABASE });
   }
-
-  return { counts: restoredCounts, isKept: options.keep };
 }
 
 /** Entry point when run directly by `npm run db:restore`. */
 async function main(): Promise<void> {
   try {
     const parsed = parseRestoreArguments(process.argv.slice(2));
-    const filePath =
-      parsed.filePath ?? (await findLatestDump(getBackupsDir()));
-
-    const result = await verifyRestore({ filePath, keep: parsed.keep });
-    process.stdout.write(
-      `restore verified: ${COUNTED_TABLES.map((table, index) => `${table}=${result.counts[index]}`).join(' ')}\n`,
-    );
+    const filePath = parsed.filePath ?? (await findLatestDump(getBackupsDir()));
+    await verifyRestore({ filePath, keep: parsed.keep });
+    process.stdout.write(`restore verified from ${filePath}\n`);
   } catch (err: unknown) {
     logger.error('restore drill failed', {
       err: err instanceof Error ? err.message : String(err),

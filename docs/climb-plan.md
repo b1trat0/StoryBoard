@@ -45,11 +45,10 @@ keystore, strict CSP, localhost-only database, and no prose in logs.
 
 ### 2.2 C: has 29.5 GB free, D: has 107.5 GB — durable data moves to D:
 
-Dumps, exports and illustration files now default to `D:`. Docker's own disk image
-still lives on `C:` and holds three projects' volumes
-(`storyboard_storyboard-pgdata`, `ontrack_pgdata`, `companycomms_pgdata`), so moving
-it affects work outside this repository. That move is a separate approved step with
-its own checkpoint — see §7.
+Dumps, exports and illustration files now default to `D:`. Docker's disk image stays on
+`C:` and is not being moved: the databases in it hold no manuscript yet, and the author
+will recreate the container rather than migrate 11.3 GB of data belonging to other
+projects. Revisit if `C:` gets tight once real chapters exist.
 
 ---
 
@@ -91,16 +90,18 @@ every screen built before the project layer will have to be reopened afterwards.
 
 - `scripts/pg-dump.ts` — `docker exec storyboard-db pg_dump -Fc`, timestamped
   filename, retention (14 daily + 8 weekly), refuses to write inside the repo,
-  verifies the file is non-empty and parseable with `pg_restore -l`, then copies to
-  `D:\storyboard-backups` and the OneDrive folder.
+  verifies the header and `pg_restore -l` table of contents, then copies to an
+  optional mirror.
+- **Backup button in the app header** — runs the same service, and reports the file
+  path, size, row counts and the restore command. No scheduler: a scheduled task that
+  stops working fails silently, and this app has no server to notice.
 - `scripts/restore.ts` — restores a chosen dump into a throwaway database and
   compares chapter/fact counts against the source. **A backup that has never been
   restored is a rumour.**
-- `scripts/backup-task.ps1` + Task Scheduler registration — daily, plus a catch-up
-  run at logon if the last backup is older than 36 hours.
 - `docs/backup.md` — where every file lands, how to restore by hand, what to do if
   the container is gone.
-- Unit tests on the pure parts: filename, retention selection, path-safety check.
+- Unit tests on the pure parts and on the service: naming, retention selection,
+  path safety, verify-before-write, delete-only-after-write.
 
 **Done when:** you delete a test chapter, run the restore, and the chapter comes back.
 
@@ -221,7 +222,7 @@ secret" without scrolling prose.
 | CSP | Unchanged — AI traffic happens in main, so `connect-src 'self'` stays | — |
 | Logs | Shapes, latency and token counts only. Never prose. | M8 |
 | Second instance | Blocked by single-instance lock | M1 |
-| Backups monitored | Task Scheduler + `backup.log`; in-app "last backup" line later | M0 ✓ / M7 |
+| Backups monitored | Shown in the header dialog: last backup, size, counts, path | M0 ✓ / M7 |
 
 ---
 
@@ -247,24 +248,17 @@ Resolved before M0:
    full. `STORYBOARD_BACKUP_MIRROR_DIR` stays available for when a synced folder on
    `D:` exists; until then there is no off-machine copy and §2.1 says so.
 2. **Encryption** — out of scope. Recorded, with consequences, in §2.1.
-3. **Docker data location** — approved: move it to `D:`. **Not done yet.** Docker
-   Desktop holds three volumes from other projects, so the move is done through its
-   own settings (which relocates the data safely) and is scheduled after M0's backup
-   is proven, so a restore path exists before anything is moved.
+3. **Docker data location** — not moved. The container holds no manuscript yet and will
+   be recreated; no 11.3 GB migration for data that does not exist.
 4. **Project migration** — approved. It lands in M2.
 5. **Repository** — public GitHub repo `b1trat0/StoryBoard`. No secrets, no
-   manuscript data, no dumps, no keys are ever committed; `.gitignore` and the
-   dump script's path guard both enforce it.
+   manuscript data, no dumps, no keys are ever committed; `.gitignore` and the backup
+   service's path guard both enforce it.
 
-### Docker data move — the checkpoint procedure
+### Open item, not blocking
 
-Run only after a dump has been restored successfully:
-
-1. `npm run db:dump` and `npm run db:restore` both green.
-2. Docker Desktop → Settings → Resources → Advanced → **Disk image location** →
-   `D:\docker-data`. Docker relocates the image itself; do not move files by hand.
-3. Restart Docker, then verify all three databases answer:
-   `docker ps` and `docker exec storyboard-db pg_isready -U storyboard -d storyboard`.
-4. Run `npm run db:restore` again to prove the manuscript survived the move.
-5. If anything fails, the dumps on `D:` are the recovery path — this is why the move
-   comes after step 1, not before.
+`C:` has 29.5 GB free and Docker's image is 11.3 GB of it. If space gets tight once
+real chapters exist, the move is Docker Desktop → Settings → Resources → Advanced →
+Disk image location → `D:\docker-data`, then delete
+`C:\Users\vinit\AppData\Local\Docker\wsl` after verifying every container starts. Take a
+backup first; the dumps on `D:` are the recovery path.

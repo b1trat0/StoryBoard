@@ -1,9 +1,8 @@
 import { spawn } from 'node:child_process';
 
 /**
- * Process plumbing for the backup scripts.
+ * Process plumbing for anything that shells out to Docker.
  *
- * The only job here is running Docker with a real exit code and a captured stdout.
  * `exec` would be shorter but cannot pipe binary data in and out reliably, and a
  * pg_dump stream is binary.
  */
@@ -72,7 +71,7 @@ export function runInContainer(
 }
 
 /**
- * Trims a captured stderr stream down to something worth printing in an error.
+ * Trims a captured stderr stream down to something worth showing the author.
  *
  * @param result - A failed process result.
  * @returns A single line naming the exit code and the last line of stderr.

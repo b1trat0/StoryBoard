@@ -120,6 +120,16 @@ export interface StoryBoardBridge {
      */
     exportVolumeDocx(input: { volumeId: string }): Promise<VolumeDocxExportResult>;
   };
+  /**
+   * Manual backup of the manuscript database.
+   *
+   * Pressing the button returns what was written and where, which is the point: the
+   * author needs a recovery location, not a "done" toast.
+   */
+  backup: {
+    status(input: Record<string, never>): Promise<BackupStatus>;
+    run(input: Record<string, never>): Promise<BackupRunResult>;
+  };
 }
 
 export type EntityType = 'character' | 'place' | 'faction' | 'item' | 'rule';
@@ -393,6 +403,39 @@ export type VolumeDocxExportResult =
       droppedNoteCount: number;
       warnings: ReleaseWarning[];
     };
+
+/**
+ * One verified backup file on disk.
+ *
+ * `filePath` is shown to the author because a backup they cannot find is a backup
+ * they do not have.
+ */
+export interface BackupFileInfo {
+  fileName: string;
+  filePath: string;
+  bytes: number;
+  createdAt: string;
+}
+
+/** What the backup screen knows before the author presses anything. */
+export interface BackupStatus {
+  directory: string;
+  isMirrorConfigured: boolean;
+  lastBackup: BackupFileInfo | null;
+}
+
+/** What one backup wrote, and what it left behind. */
+export interface BackupRunResult {
+  file: BackupFileInfo;
+  counts: {
+    chapters: number;
+    entities: number;
+    facts: number;
+    relations: number;
+  };
+  removed: string[];
+  mirrorPath: string | null;
+}
 
 /**
  * Returns the bridge, or null when the renderer is running outside Electron.

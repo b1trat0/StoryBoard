@@ -14,6 +14,7 @@ import type {
 import type { EntityRepository } from '../repositories/entity.repository.js';
 import type { FactRepository } from '../repositories/fact.repository.js';
 import type { RelationRepository } from '../repositories/relation.repository.js';
+import { RuleViolationError } from '../lib/errors.js';
 
 /**
  * Business rules.
@@ -25,15 +26,11 @@ import type { RelationRepository } from '../repositories/relation.repository.js'
  */
 
 /**
- * Raised for a rule the author can act on. Controllers turn this into a plain
- * sentence; it never reaches the renderer as a stack trace.
+ * Re-exported so existing imports keep working; the class itself lives in
+ * `lib/errors.ts` so services outside this one can raise an author-facing rule
+ * violation without importing a feature module.
  */
-export class RuleViolationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'RuleViolationError';
-  }
-}
+export { RuleViolationError } from '../lib/errors.js';
 
 export interface EntityService {
   list(input: ListEntitiesRequest): Promise<Entity[]>;

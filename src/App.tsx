@@ -1,4 +1,4 @@
-import { WarningCircle } from '@phosphor-icons/react';
+import { WarningCircle, HardDrives } from '@phosphor-icons/react';
 import { useCallback, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { getBridge } from './lib/bridge';
@@ -18,6 +18,8 @@ import { EntityList } from './features/entities/entity-list';
 import { EntitySidebar } from './features/entities/entity-sidebar';
 import { useEntities } from './features/entities/use-entities';
 import { FormattingReference } from './features/export/formatting-reference';
+import { BackupDialog } from './features/backup/backup-dialog';
+import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
 
@@ -61,6 +63,7 @@ export function App() {
   const [activeType, setActiveType] = useState<EntityType>('character');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [pendingChapterId, setPendingChapterId] = useState<string | null>(null);
 
   const entities = byType.get(activeType) ?? [];
@@ -162,9 +165,20 @@ export function App() {
           <span className="text-[13px] text-ink-muted">My Serial</span>
         </div>
         <AppNav activeSection={activeSection} onSelectSection={setActiveSection} />
-        <span className="text-[11px] text-ink-muted">
-          Local only. Nothing leaves this machine.
-        </span>
+        <div className="flex items-center gap-3">
+          {/*
+            Backups sit in the header rather than a settings screen: it is the one
+            action that protects everything else, and it should be reachable from any
+            section without hunting.
+          */}
+          <Button variant="ghost" size="sm" onClick={() => setIsBackupOpen(true)}>
+            <HardDrives size={15} weight="bold" aria-hidden="true" />
+            Backup
+          </Button>
+          <span className="text-[11px] text-ink-muted">
+            Local only. Nothing leaves this machine.
+          </span>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -311,6 +325,10 @@ export function App() {
           onCancel={onCancelSwitch}
           onDiscard={onDiscardAndSwitch}
         />
+      )}
+
+      {isBackupOpen && (
+        <BackupDialog isOpen onClose={() => setIsBackupOpen(false)} />
       )}
 
       <Toaster
