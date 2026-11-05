@@ -11,6 +11,15 @@ Thumbs.db
 
 # Local manuscript backups produced by pg_dump automation
 backups/
+*.dump
+*.dump.partial
+*.sql.gz
+
+# Illustration files are the source of truth on disk, never repository content
+illustrations/
+
+# Crash-recovery drafts written by the editor
+drafts/
 
 # Export artifacts are regenerated from the database, never committed
 exports/
