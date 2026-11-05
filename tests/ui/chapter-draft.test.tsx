@@ -56,7 +56,10 @@ function installBridge() {
         authorNotePost: input.authorNotePost,
       }),
   );
-  (window as { storyboard?: unknown }).storyboard = { chapters: { saveProse } };
+  (window as { storyboard?: unknown }).storyboard = {
+    chapters: { saveProse },
+    facts: { list: vi.fn(async () => []) },
+  };
   return { saveProse };
 }
 
@@ -174,6 +177,7 @@ describe('unsaved is honest', () => {
           throw new Error('The database is not reachable.');
         }),
       },
+      facts: { list: vi.fn(async () => []) },
     };
     render(<Shell chapter={chapterFixture()} />);
 

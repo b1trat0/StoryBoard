@@ -13,6 +13,10 @@ established two hundred pages earlier.
   continuity record, a kind (light novel / novel) and a publishing profile. The app
   reopens the work you used last.
 - **Storybook** — characters, places, factions, items and rules, with aliases and prose sheets.
+- **Relations** — social, possession and membership, with sentiment only where it means
+  something, validity ranges, secrets, and who has learned each one.
+- **Facts** — recorded per chapter and per entity with a required source quote, then
+  approved or rejected. This is the tab that stops a reread.
 - **Chapters** — volume → arc → chapter outline, prose editor, Royal Road author notes,
   word counts, Ctrl+S, a close guard that refuses to discard unsaved prose, and crash
   recovery that keeps typing when the process dies.

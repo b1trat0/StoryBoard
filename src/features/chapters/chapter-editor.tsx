@@ -5,6 +5,7 @@ import { EmptyState, Skeleton } from '../../components/ui/empty-state';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { FactsPanel } from '../facts/facts-panel';
 import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';import { cn } from '../../lib/utils';
 import {
   CHAPTER_TYPES,
@@ -40,6 +41,10 @@ export interface ChapterEditorProps {
   recoveredDraft: CrashDraft | null;
   onRestoreDraft: () => Promise<void>;
   onDiscardDraft: () => Promise<void>;
+  /** Work the facts belong to. */
+  projectId: string | null;
+  /** Chapters available as a source for a fact about this chapter. */
+  chapters: { id: string; title: string }[];
 }
 
 /**
@@ -71,6 +76,8 @@ export function ChapterEditor({
   recoveredDraft,
   onRestoreDraft,
   onDiscardDraft,
+  projectId,
+  chapters,
 }: ChapterEditorProps) {
 
   if (isLoading) {
@@ -333,6 +340,18 @@ export function ChapterEditor({
                 />
               </div>
             </div>
+          </section>
+
+          <section className="mt-8 border-t border-line pt-6">
+            <FactsPanel
+              projectId={projectId}
+              scopeType="chapter"
+              scopeId={draft.id}
+              chapters={chapters}
+              fixedChapterId={draft.id}
+              emptyMessage="Nothing recorded for this chapter yet."
+              hint="What happened here, so you do not have to reread it later. A fact without a quote cannot be checked."
+            />
           </section>
         </div>
       </div>

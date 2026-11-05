@@ -7,6 +7,7 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { describeError } from '../../lib/bridge';
 import type { Entity } from '../../lib/bridge';
+import { FactsPanel } from '../facts/facts-panel';
 import { TypeBadge } from './entity-type';
 
 export interface EntityDetailProps {
@@ -21,6 +22,10 @@ export interface EntityDetailProps {
   ) => Promise<void>;
   onAddAlias: (id: string, alias: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  /** Work the facts belong to. */
+  projectId: string | null;
+  /** Chapters available as a source for a fact about this entity. */
+  chapters: { id: string; title: string }[];
 }
 
 interface DraftFields {
@@ -62,6 +67,8 @@ export function EntityDetail({
   onSave,
   onAddAlias,
   onDelete,
+  projectId,
+  chapters,
 }: EntityDetailProps) {
   const [draft, setDraft] = useState<DraftFields>(() => draftFrom(entity));
   const [aliasDraft, setAliasDraft] = useState('');
@@ -214,6 +221,17 @@ export function EntityDetail({
             />
           </div>
         ))}
+
+        <div className="border-t border-line pt-5">
+          <FactsPanel
+            projectId={projectId}
+            scopeType="entity"
+            scopeId={entity.id}
+            chapters={chapters}
+            emptyMessage="Nothing recorded about this entity yet."
+            hint="Established facts about this character, place or faction, each with the line that proved it."
+          />
+        </div>
 
         {errorMessage !== null && (
           <div

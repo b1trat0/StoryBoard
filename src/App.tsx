@@ -1,5 +1,5 @@
 import { WarningCircle, HardDrives } from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { getBridge } from './lib/bridge';
 import type { Entity, EntityType } from './lib/bridge';
@@ -23,6 +23,7 @@ import { BackupDialog } from './features/backup/backup-dialog';
 import { ProjectCreateDialog } from './features/projects/project-create-dialog';
 import { ProjectSwitcher } from './features/projects/project-switcher';
 import { useProjects } from './features/projects/use-projects';
+import { RelationsScreen } from './features/relations/relations-screen';
 import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
@@ -42,6 +43,7 @@ export function App() {
   const activeProjectId = projects.activeProject?.id ?? null;
 
   const {
+    entities: allEntities,
     byType,
     counts,
     isLoading,
@@ -118,6 +120,22 @@ export function App() {
   const entities = byType.get(activeType) ?? [];
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
   const hasBridge = getBridge() !== null;
+
+  /**
+   * Chapters as flat options, for the pickers that name a source chapter.
+   *
+   * Facts require a source chapter and relations can be valid over a chapter range, so
+   * both screens need the outline in reading order rather than as a tree.
+   */
+  const chapterOptions = useMemo(
+    () =>
+      outline.tree.volumes.flatMap((volume) =>
+        volume.arcs.flatMap((arc) =>
+          arc.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title })),
+        ),
+      ),
+    [outline.tree],
+  );
 
   const onSelectProject = useCallback(
     (projectId: string) => {
@@ -385,10 +403,20 @@ export function App() {
                 recoveredDraft={crashDraft.recovered}
                 onRestoreDraft={crashDraft.restore}
                 onDiscardDraft={crashDraft.discard}
+                projectId={activeProjectId}
+                chapters={chapterOptions}
               />
             )}
 
             {activeSection === 'formatting' && <FormattingReference />}
+
+            {activeSection === 'relations' && (
+              <RelationsScreen
+                projectId={activeProjectId}
+                entities={allEntities}
+                chapters={chapterOptions}
+              />
+            )}
 
             {activeSection === 'export' && (
               <div className="flex min-h-0 flex-1 flex-col">
@@ -436,6 +464,8 @@ export function App() {
               onSave={onSave}
               onAddAlias={onAddAlias}
               onDelete={onDelete}
+              projectId={activeProjectId}
+              chapters={chapterOptions}
             />
           )}
         </div>

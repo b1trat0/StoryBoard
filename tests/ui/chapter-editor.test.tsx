@@ -71,6 +71,12 @@ function installBridge(): BridgeStub {
   const saveOutline = vi.fn(async (input: { id: string }) => chapterFixture({ ...input, id: CHAPTER_ID }));
   (window as { storyboard?: unknown }).storyboard = {
     chapters: { saveProse, saveOutline },
+    facts: {
+      list: vi.fn(async () => []),
+      create: vi.fn(),
+      setStatus: vi.fn(),
+      remove: vi.fn(),
+    },
   };
   return { saveProse, saveOutline };
 }
