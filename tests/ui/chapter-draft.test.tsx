@@ -59,6 +59,7 @@ function installBridge() {
   (window as { storyboard?: unknown }).storyboard = {
     chapters: { saveProse },
     facts: { list: vi.fn(async () => []) },
+    illustrations: { listByChapter: vi.fn(async () => []) },
   };
   return { saveProse };
 }
@@ -178,6 +179,7 @@ describe('unsaved is honest', () => {
         }),
       },
       facts: { list: vi.fn(async () => []) },
+      illustrations: { listByChapter: vi.fn(async () => []) },
     };
     render(<Shell chapter={chapterFixture()} />);
 

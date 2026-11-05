@@ -85,6 +85,7 @@ export function createBridgeApi(): StoryBoardApi {
       createSlot: (input) => invoke(CHANNELS.illustrationsCreateSlot, input),
       updateSlot: (input) => invoke(CHANNELS.illustrationsUpdateSlot, input),
       uploadToHost: (input) => invoke(CHANNELS.illustrationsUploadToHost, input),
+      pickImage: (input) => invoke(CHANNELS.illustrationsPickImage, input),
     },
     release: {
       previewChapter: (input) => invoke(CHANNELS.releasePreviewChapter, input),

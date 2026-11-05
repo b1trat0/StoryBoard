@@ -9,9 +9,9 @@
 export const SECTIONS = [
   { id: 'storybook', label: 'Storybook', isBuilt: true },
   { id: 'chapters', label: 'Chapters', isBuilt: true },
-  { id: 'glossary', label: 'Glossary', isBuilt: false },
+  { id: 'glossary', label: 'Glossary', isBuilt: true },
   { id: 'relations', label: 'Relations', isBuilt: true },
-  { id: 'illustrations', label: 'Illustrations', isBuilt: false },
+  { id: 'illustrations', label: 'Illustrations', isBuilt: true },
   { id: 'formatting', label: 'Formatting', isBuilt: true },
   { id: 'export', label: 'Royal Road export', isBuilt: true },
 ] as const;

@@ -15,6 +15,11 @@ established two hundred pages earlier.
 - **Storybook** — characters, places, factions, items and rules, with aliases and prose sheets.
 - **Relations** — social, possession and membership, with sentiment only where it means
   something, validity ranges, secrets, and who has learned each one.
+- **Glossary** — every invented name and word pinned, with notes; the never-touch list for
+  the future English checker.
+- **Illustrations** — slots anchored to a paragraph, alt text required, upload to Catbox
+  only after an explicit confirmation, and a warning when the chapter got shorter than an
+  existing anchor.
 - **Facts** — recorded per chapter and per entity with a required source quote, then
   approved or rejected. This is the tab that stops a reread.
 - **Chapters** — volume → arc → chapter outline, prose editor, Royal Road author notes,

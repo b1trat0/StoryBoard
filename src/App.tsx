@@ -24,6 +24,9 @@ import { ProjectCreateDialog } from './features/projects/project-create-dialog';
 import { ProjectSwitcher } from './features/projects/project-switcher';
 import { useProjects } from './features/projects/use-projects';
 import { RelationsScreen } from './features/relations/relations-screen';
+import { GlossaryScreen } from './features/glossary/glossary-screen';
+import { IllustrationsPanel } from './features/illustrations/illustrations-panel';
+import { countParagraphs } from './lib/chapter-text';
 import { Button } from './components/ui/button';
 import { ReleasePreview } from './features/export/release-preview';
 import { VolumeDocxExport } from './features/export/volume-docx-export';
@@ -340,7 +343,9 @@ export function App() {
           />
         )}
 
-        {(activeSection === 'chapters' || activeSection === 'export') && (
+        {(activeSection === 'chapters' ||
+          activeSection === 'export' ||
+          activeSection === 'illustrations') && (
           <nav
             aria-label="Outline"
             className="flex w-72 shrink-0 flex-col border-r border-line bg-surface-sunken/40"
@@ -416,6 +421,37 @@ export function App() {
                 entities={allEntities}
                 chapters={chapterOptions}
               />
+            )}
+
+            {activeSection === 'glossary' && (
+              <GlossaryScreen projectId={activeProjectId} />
+            )}
+
+            {activeSection === 'illustrations' && (
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="mx-auto w-full max-w-3xl space-y-4">
+                  <div>
+                    <h1 className="font-serif text-[15px] font-semibold text-ink">
+                      Illustrations
+                    </h1>
+                    <p className="mt-0.5 text-[12.5px] text-ink-muted">
+                      Images for the chapter you have open. Pick a chapter in the outline
+                      to see or add its images.
+                    </p>
+                  </div>
+                  {outline.chapter === null ? (
+                    <EmptyState
+                      title="No chapter open"
+                      body="Choose a chapter in the outline. Images are anchored to a paragraph inside one chapter, so they belong to the chapter rather than the work."
+                    />
+                  ) : (
+                    <IllustrationsPanel
+                      chapterId={outline.chapter.id}
+                      paragraphCount={countParagraphs(outline.chapter.bodyMd)}
+                    />
+                  )}
+                </div>
+              </div>
             )}
 
             {activeSection === 'export' && (

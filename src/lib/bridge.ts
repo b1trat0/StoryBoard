@@ -107,6 +107,7 @@ export interface StoryBoardBridge {
       caption?: string;
     }): Promise<Illustration>;
     uploadToHost(input: { id: string }): Promise<Illustration>;
+    pickImage(input?: Record<string, never>): Promise<PickImageResult>;
   };
   /**
    * The first step of the export pipeline and the only one that writes nothing.
@@ -393,6 +394,16 @@ export interface Illustration {
   createdAt: string;
   updatedAt: string;
 }
+
+/** What the image picker returned. Dimensions are read by the main process. */
+export type PickImageResult =
+  | {
+      status: 'picked';
+      filePath: string;
+      width: number | null;
+      height: number | null;
+    }
+  | { status: 'cancelled' };
 
 /** How badly a preview problem affects publishing. */
 export type ReleaseSeverity = 'blocker' | 'warning';

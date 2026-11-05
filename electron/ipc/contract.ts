@@ -414,6 +414,18 @@ export const backupRunResultSchema = z.object({
   mirrorPath: z.string().nullable(),
 });
 
+export const pickImageRequestSchema = z.object({});
+
+export const pickImageResultSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('picked'),
+    filePath: z.string(),
+    width: z.number().int().positive().nullable(),
+    height: z.number().int().positive().nullable(),
+  }),
+  z.object({ status: z.literal('cancelled') }),
+]);
+
 // --- release preview --------------------------------------------------------
 
 /**
@@ -512,6 +524,7 @@ export type ExportProfile = z.infer<typeof exportProfileSchema>;
 export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export type ListProjectsRequest = z.input<typeof listProjectsRequestSchema>;
 export type CreateProjectInput = z.input<typeof createProjectRequestSchema>;
+export type PickImageResult = z.infer<typeof pickImageResultSchema>;
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type RelationCategory = z.infer<typeof relationCategorySchema>;
@@ -892,6 +905,14 @@ export interface StoryBoardApi {
       caption?: string;
     }): Promise<Illustration>;
     uploadToHost(input: { id: string }): Promise<Illustration>;
+    /**
+     * Asks the author for an image file and reads its dimensions.
+     *
+     * The file itself never becomes bytes in the renderer: main returns the path and
+     * the real width and height, and the slot stores the path. The image host upload
+     * reads the file in main when it is explicitly requested.
+     */
+    pickImage(input: Record<string, never>): Promise<PickImageResult>;
   };
   /**
    * The first step of the export pipeline, and the only one that writes nothing.

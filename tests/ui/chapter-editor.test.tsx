@@ -77,6 +77,7 @@ function installBridge(): BridgeStub {
       setStatus: vi.fn(),
       remove: vi.fn(),
     },
+    illustrations: { listByChapter: vi.fn(async () => []) },
   };
   return { saveProse, saveOutline };
 }

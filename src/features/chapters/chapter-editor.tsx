@@ -6,6 +6,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { FactsPanel } from '../facts/facts-panel';
+import { IllustrationsPanel } from '../illustrations/illustrations-panel';
+import { countParagraphs } from '../../lib/chapter-text';
 import type { Chapter, ChapterStatus, ChapterType, CrashDraft } from '../../lib/bridge';import { cn } from '../../lib/utils';
 import {
   CHAPTER_TYPES,
@@ -340,6 +342,13 @@ export function ChapterEditor({
                 />
               </div>
             </div>
+          </section>
+
+          <section className="mt-8 border-t border-line pt-6">
+            <IllustrationsPanel
+              chapterId={draft.id}
+              paragraphCount={countParagraphs(draft.bodyMd)}
+            />
           </section>
 
           <section className="mt-8 border-t border-line pt-6">

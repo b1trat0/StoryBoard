@@ -44,6 +44,7 @@ export const CHANNELS = {
   illustrationsCreateSlot: 'illustrations:createSlot',
   illustrationsUpdateSlot: 'illustrations:updateSlot',
   illustrationsUploadToHost: 'illustrations:uploadToHost',
+  illustrationsPickImage: 'illustrations:pickImage',
   releasePreviewChapter: 'release:previewChapter',
   releaseExportVolumeDocx: 'release:exportVolumeDocx',
   backupStatus: 'backup:status',

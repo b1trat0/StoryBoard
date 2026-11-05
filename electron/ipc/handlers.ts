@@ -6,7 +6,7 @@ import { handleIpc } from '../controllers/ipc-handler.js';
 import type { IpcResult } from '../controllers/ipc-handler.js';
 import type { Logger } from '../lib/logger.js';
 import { createCatboxHost } from '../interfaces/catbox.interface.js';
-import type { SaveFilePicker } from '../interfaces/file-dialog.interface.js';
+import type { SaveFilePicker, ImagePicker } from '../interfaces/file-dialog.interface.js';
 import { createChapterRepository } from '../repositories/chapter.repository.js';
 import { createOutlineRepository } from '../repositories/outline.repository.js';
 import { createEntityRepository } from '../repositories/entity.repository.js';
@@ -67,6 +67,8 @@ import {
   outlineDeletionImpactSchema,
   outlineTreeSchema,
   previewChapterRequestSchema,
+  pickImageRequestSchema,
+  pickImageResultSchema,
   runBackupRequestSchema,
   backupStatusRequestSchema,
   backupRunResultSchema,
@@ -141,6 +143,7 @@ export function createHandlers(
   quit?: QuitControls,
   draftsDir: string = path.join(process.cwd(), 'drafts'),
   settingsPath: string = path.join(process.cwd(), 'settings.json'),
+  pickImage: ImagePicker = { pick: async () => ({ status: 'cancelled' }) },
 ) {
   const entityService = createEntityService(createEntityRepository());
   const relationService = createRelationService(createRelationRepository());
@@ -461,6 +464,14 @@ export function createHandlers(
       uploadIllustrationRequestSchema,
       illustrationSchema,
       (input) => illustrationService.uploadToHost(input),
+    ),
+
+    [CHANNELS.illustrationsPickImage]: handleIpc(
+      logger,
+      CHANNELS.illustrationsPickImage,
+      pickImageRequestSchema,
+      pickImageResultSchema,
+      () => pickImage.pick(),
     ),
 
     [CHANNELS.releasePreviewChapter]: handleIpc(

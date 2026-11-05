@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { BrowserWindow, dialog } from 'electron';
+import { BrowserWindow, dialog, nativeImage } from 'electron';
 import type { FileFilter } from 'electron';
 
 /**
@@ -42,6 +42,62 @@ export class ExportWriteError extends Error {
 
 /** Word's own filter, so the dialog does not offer the author a wrong file type. */
 const DOCX_FILTER: FileFilter = { name: 'Word document', extensions: ['docx'] };
+
+const IMAGE_FILTERS: FileFilter[] = [
+  { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
+];
+
+/** What the image picker returns; dimensions come from Electron, not the renderer. */
+export type PickImageOutcome =
+  | {
+      status: 'picked';
+      filePath: string;
+      width: number | null;
+      height: number | null;
+    }
+  | { status: 'cancelled' };
+
+export interface ImagePicker {
+  /** Asks the author for one image file and reads its real dimensions. */
+  pick(): Promise<PickImageOutcome>;
+}
+
+/**
+ * The real image picker.
+ *
+ * Dimensions are read here rather than guessed in the renderer: Royal Road's export
+ * needs width and height on the tag, and a wrong guess produces a squashed image in a
+ * published chapter. `nativeImage` reads the actual file.
+ *
+ * @param getWindow - Supplies the parent window, read lazily.
+ */
+export function createImagePicker(getWindow: () => BrowserWindow | null): ImagePicker {
+  return {
+    async pick() {
+      const parent = getWindow();
+      const result =
+        parent === null
+          ? await dialog.showOpenDialog({ properties: ['openFile'], filters: IMAGE_FILTERS })
+          : await dialog.showOpenDialog(parent, {
+              properties: ['openFile'],
+              filters: IMAGE_FILTERS,
+            });
+
+      const filePath = result.filePaths[0];
+      if (result.canceled || filePath === undefined) {
+        return { status: 'cancelled' };
+      }
+
+      const size = nativeImage.createFromPath(filePath).getSize();
+      return {
+        status: 'picked',
+        filePath,
+        width: size.width > 0 ? size.width : null,
+        height: size.height > 0 ? size.height : null,
+      };
+    },
+  };
+}
 
 /**
  * The real implementation, backed by Electron's save dialog.

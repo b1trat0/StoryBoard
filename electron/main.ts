@@ -7,7 +7,7 @@ import { closeDb, initDb } from './db/client.js';
 import { createHandlers } from './ipc/handlers.js';
 import type { Handlers, QuitControls } from './ipc/handlers.js';
 import { EVENTS } from './ipc/channels.js';
-import { createSaveFilePicker } from './interfaces/file-dialog.interface.js';
+import { createSaveFilePicker, createImagePicker } from './interfaces/file-dialog.interface.js';
 
 /**
  * Electron main process.
@@ -62,6 +62,7 @@ function registerIpcHandlers(): Handlers {
     quitControls,
     path.join(app.getPath('userData'), 'drafts'),
     path.join(app.getPath('userData'), 'settings.json'),
+    createImagePicker(() => mainWindow),
   );
   for (const [channel, handler] of Object.entries(handlers)) {
     // Every handler has the same shape: untrusted payload in, IpcResult out.

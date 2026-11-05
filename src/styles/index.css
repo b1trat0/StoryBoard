@@ -31,6 +31,10 @@
   --color-danger: #8f3126;
   --color-danger-soft: #f8eae7;
 
+  /* Amber for "unfinished but not wrong": an unuploaded image, a misplaced anchor. */
+  --color-warn: #8a5a12;
+  --color-warn-soft: #fbf1de;
+
   --font-sans:
     ui-sans-serif, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-serif:

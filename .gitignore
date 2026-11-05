@@ -15,8 +15,9 @@ backups/
 *.dump.partial
 *.sql.gz
 
-# Illustration files are the source of truth on disk, never repository content
-illustrations/
+# Illustration files are the source of truth on disk, never repository content.
+# Root-anchored so it cannot swallow src/features/illustrations.
+/illustrations/
 
 # Crash-recovery drafts written by the editor
 drafts/
