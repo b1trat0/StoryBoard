@@ -7,10 +7,12 @@
   "type": "module",
   "scripts": {
     "start": "npm run build && electron .",
-    "dev": "npm run build:electron && node scripts/dev.mjs",
+    "dev": "npm run db:up && npm run build:electron && node dist-electron/scripts/migrate.js && node dist-electron/scripts/seed.js && node scripts/dev.mjs",
     "dev:electron": "npm run dev",
     "dev:vite": "vite",
     "dev:electron:bare": "cross-env STORYBOARD_DEV_SERVER=http://localhost:5173 electron .",
+    "verify": "npm run typecheck && npm run lint && npm test",
+    "all": "npm run db:up && npm run verify && npm run dev",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.electron.json && npm run build:preload",
     "build:preload": "vite build --config vite.preload.config.ts",

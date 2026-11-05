@@ -46,20 +46,19 @@ is done), per-chapter `.html` export, the markdown archive, and the AI layer.
 
 ```bash
 npm install
-npm run db:up        # start PostgreSQL in Docker
-npm run db:migrate   # apply migrations
-npm run db:seed      # create the default work
-npm start            # build both sides and open the window
+npm run dev          # starts PostgreSQL, applies migrations, seeds, opens the app
+npm run verify       # typecheck + lint + tests, no app window
+npm run all          # both, in one command
 ```
 
-`npm run dev` is the hot-reload equivalent and is the normal entry point.
+`npm run dev` is the only entry point: it starts the Docker database, applies pending
+migrations, ensures the default work exists, then runs Vite and Electron together and
+shuts Vite down when the window closes.
 
 ## Verify
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
+npm run verify
 npm run db:dump
 npm run db:restore   # proves the backup is restorable
 ```

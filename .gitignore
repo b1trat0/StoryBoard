@@ -9,6 +9,9 @@ out/
 .DS_Store
 Thumbs.db
 
+# Local notes for the author; never published
+FUTURE.md
+
 # Local manuscript backups produced by pg_dump automation
 backups/
 *.dump
